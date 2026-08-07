@@ -136,10 +136,15 @@ jobs:
 
   # ============================================================
   # CD · ADDONS
-  # ALB + Cluster Autoscaler + metrics-server.
+  # ALB interno + API Gateway do app + Cluster Autoscaler + metrics-server.
+  # O API Gateway anexa a lambda authorizer (repo lambda) nas rotas
+  # protegidas via remote state — ESTE JOB SÓ FUNCIONA SE O REPO lambda JÁ
+  # TIVER SIDO APLICADO ANTES (mesma dependência que infra-db já tem com o
+  # bootstrap). Rodando fora do mono repo (push direto neste repo), garanta
+  # isso manualmente antes de mergear algo que dispare este workflow.
   # ============================================================
   tf-addons:
-    name: "CD · Addons · ALB + Autoscaler + Metrics Server"
+    name: "CD · Addons · ALB interno + API Gateway + Autoscaler"
     needs: tf-bootstrap
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -184,5 +189,7 @@ jobs:
       - name: Terraform Apply — addons
         run: terraform -chdir=terraform/addons apply -auto-approve
 
-      - name: Exportar DNS do ALB
-        run: echo "ALB → $(terraform -chdir=terraform/addons output -raw alb_dns_name)"
+      - name: Exportar endpoint público da aplicação
+        run: |
+          echo "App (API Gateway) → $(terraform -chdir=terraform/addons output -raw app_api_endpoint)"
+          echo "ALB (interno, sem acesso direto) → $(terraform -chdir=terraform/addons output -raw alb_dns_name)"

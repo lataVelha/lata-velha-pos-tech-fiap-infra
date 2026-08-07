@@ -8,9 +8,14 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "public_subnet_ids" {
-  description = "Subnets publicas onde o ALB sera criado"
+variable "private_subnet_ids" {
+  description = "Subnets privadas onde o ALB (interno) sera criado"
   type        = list(string)
+}
+
+variable "vpc_link_security_group_id" {
+  description = "Security group dos ENIs do VPC Link do API Gateway — unica origem de trafego liberada no ALB"
+  type        = string
 }
 
 variable "node_security_group_id" {

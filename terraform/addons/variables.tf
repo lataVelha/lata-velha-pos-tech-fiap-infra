@@ -21,6 +21,12 @@ variable "state_bucket" {
   type        = string
 }
 
+variable "lambda_state_key" {
+  description = "Chave do state do repo lambda dentro do state_bucket, de onde vem o ARN da lambda authorizer"
+  type        = string
+  default     = "lata-velha/lambda-auth-cpf/terraform.tfstate"
+}
+
 # Conexao com o EKS — lidos dos outputs do bootstrap e passados via TF_VAR_
 # porque provider config nao aceita data sources.
 variable "cluster_endpoint" {
