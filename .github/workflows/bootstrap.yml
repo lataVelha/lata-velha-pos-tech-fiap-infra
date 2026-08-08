@@ -1,0 +1,85 @@
+name: Bootstrap
+
+# Reusavel (workflow_call): pode ser chamado tanto localmente (deste mesmo
+# repo, por main.yml) quanto de fora (pelo mono repo), com
+# "uses: lataVelha/lata-velha-pos-tech-fiap-infra/.github/workflows/bootstrap.yml@master".
+# Pra chamada externa funcionar, este repo precisa permitir acesso de fora
+# em Settings > Actions > General > Access.
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        description: "Regiao AWS (default: var AWS_REGION deste repo)"
+        type: string
+        required: false
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  # ============================================================
+  # CD · BOOTSTRAP
+  # VPC + EKS + ECR.
+  # ============================================================
+  apply:
+    name: "CD · Bootstrap · VPC + EKS + ECR"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      REGION: ${{ inputs.aws_region || vars.AWS_REGION }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Autenticar na AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: Provisionar bucket de estado (S3)
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="lata-velha-tfstate-${ACCOUNT_ID}"
+          echo "STATE_BUCKET=${BUCKET}" >> $GITHUB_ENV
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            aws s3 mb "s3://$BUCKET" --region "${{ env.REGION }}"
+            aws s3api put-bucket-versioning \
+              --bucket "$BUCKET" \
+              --versioning-configuration Status=Enabled
+          fi
+
+      - name: Terraform Init — bootstrap
+        run: |
+          terraform -chdir=terraform/bootstrap init -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="region=${{ env.REGION }}"
+        env:
+          TF_VAR_region: ${{ env.REGION }}
+
+      - name: Terraform Apply — bootstrap
+        run: terraform -chdir=terraform/bootstrap apply -auto-approve
+        env:
+          TF_VAR_region: ${{ env.REGION }}
+
+      - name: Exportar outputs do bootstrap
+        run: |
+          echo "cluster_name → $(terraform -chdir=terraform/bootstrap output -raw cluster_name)"
+          echo "vpc_id → $(terraform -chdir=terraform/bootstrap output -raw vpc_id)"

@@ -1,0 +1,106 @@
+name: Addons
+
+# Reusavel (workflow_call): pode ser chamado tanto localmente (deste mesmo
+# repo, por main.yml, depois do bootstrap) quanto de fora (pelo mono repo
+# ou por qualquer outro caller), com
+# "uses: lataVelha/lata-velha-pos-tech-fiap-infra/.github/workflows/addons.yml@master".
+# Pra chamada externa funcionar, este repo precisa permitir acesso de fora
+# em Settings > Actions > General > Access.
+#
+# Autossuficiente: nao recebe outputs do bootstrap via job — le o state do
+# bootstrap direto (terraform -chdir=terraform/bootstrap output), do mesmo
+# jeito que terraform/apply.sh faz local. So precisa que o bootstrap ja
+# tenha rodado (state publicado no S3) antes desta call.
+#
+# TAMBEM precisa que o repo lambda ja tenha aplicado antes — o modulo
+# app-gateway le o ARN das duas lambdas (auth-cpf + jwt-authorizer) via
+# terraform_remote_state. Sem isso, o apply abaixo falha ao ler esse state.
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        description: "Regiao AWS (default: var AWS_REGION deste repo)"
+        type: string
+        required: false
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  # ============================================================
+  # CD · ADDONS
+  # ALB interno + API Gateway do app (rotas + authorizer attachment +
+  # integracao de /auth/cpf) + Cluster Autoscaler + metrics-server.
+  # ============================================================
+  apply:
+    name: "CD · Addons · ALB interno + API Gateway + Autoscaler"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    concurrency:
+      group: infra-addons
+      cancel-in-progress: false
+
+    env:
+      REGION: ${{ inputs.aws_region || vars.AWS_REGION }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Autenticar na AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: Resolver bucket de estado (S3)
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "STATE_BUCKET=lata-velha-tfstate-${ACCOUNT_ID}" >> $GITHUB_ENV
+
+      - name: Ler outputs do bootstrap (state já aplicado)
+        run: |
+          terraform -chdir=terraform/bootstrap init -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="region=${{ env.REGION }}" > /dev/null
+          echo "TF_VAR_cluster_endpoint=$(terraform -chdir=terraform/bootstrap output -raw cluster_endpoint)" >> $GITHUB_ENV
+          echo "TF_VAR_cluster_ca_data=$(terraform -chdir=terraform/bootstrap output -raw cluster_certificate_authority_data)" >> $GITHUB_ENV
+          echo "TF_VAR_cluster_name=$(terraform -chdir=terraform/bootstrap output -raw cluster_name)" >> $GITHUB_ENV
+        env:
+          TF_VAR_region: ${{ env.REGION }}
+
+      - name: Terraform Init — addons
+        run: |
+          terraform -chdir=terraform/addons init -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="region=${{ env.REGION }}"
+
+      - name: Terraform Apply — addons
+        run: terraform -chdir=terraform/addons apply -auto-approve
+        env:
+          TF_VAR_region: ${{ env.REGION }}
+          TF_VAR_state_bucket: ${{ env.STATE_BUCKET }}
+          TF_VAR_aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          TF_VAR_aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          TF_VAR_aws_session_token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Exportar endpoint público da aplicação
+        run: |
+          echo "App (API Gateway) → $(terraform -chdir=terraform/addons output -raw app_api_endpoint)"
+          echo "ALB (interno, sem acesso direto) → $(terraform -chdir=terraform/addons output -raw alb_dns_name)"

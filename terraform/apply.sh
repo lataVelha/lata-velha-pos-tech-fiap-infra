@@ -27,10 +27,19 @@
 #   ./apply.sh --destroy --auto   — destroi tudo sem confirmação
 #
 # Pré-requisitos:
-#   cp addons/terraform.tfvars.example addons/terraform.tfvars   # se aplicavel
-#   # As credenciais AWS do Cluster Autoscaler são lidas do ambiente (aws configure)
+#   aws configure   # credenciais AWS (tambem usadas pelo Cluster Autoscaler)
+#   # Nao precisa de terraform.tfvars: bootstrap/addons nao tem variavel
+#   # obrigatoria sem default — tudo que varia (state_bucket, cluster_endpoint,
+#   # cluster_ca_data, cluster_name, credenciais AWS) e injetado por este script.
 
-set -euo pipefail
+set -Eeuo pipefail
+
+# --------------------------- saída no terminal ------------------------------
+if [[ -t 1 ]]; then
+  C_BLUE=$'\033[1;34m'; C_GREEN=$'\033[1;32m'; C_YELLOW=$'\033[1;33m'; C_RED=$'\033[1;31m'; C_DIM=$'\033[2m'; C_RESET=$'\033[0m'
+else
+  C_BLUE=''; C_GREEN=''; C_YELLOW=''; C_RED=''; C_DIM=''; C_RESET=''
+fi
 
 AUTO=""
 DESTROY=false
@@ -44,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     --bootstrap-only) BOOTSTRAP_ONLY=true ;;
     --addons-only)     ADDONS_ONLY=true ;;
     *)
-      echo "Flag desconhecida: $1"
+      echo "${C_RED}Flag desconhecida: $1${C_RESET}"
       echo "Uso: ./apply.sh [--auto] [--bootstrap-only|--addons-only] [--destroy]"
       exit 1
       ;;
@@ -62,17 +71,33 @@ BOOTSTRAP_DIR="$SCRIPT_DIR/bootstrap"
 ADDONS_DIR="$SCRIPT_DIR/addons"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 
+if $BOOTSTRAP_ONLY; then
+  MODE_LABEL="Bootstrap (VPC + EKS + ECR)"
+elif $ADDONS_ONLY; then
+  MODE_LABEL="Addons (ALB interno + API Gateway + Autoscaler)"
+else
+  MODE_LABEL="Bootstrap + Addons (pipeline completo)"
+fi
+
+echo "${C_BLUE}════════════════════════════════════════════════════════════${C_RESET}"
+if $DESTROY; then
+  echo "${C_YELLOW}  INFRA — Destruindo: ${MODE_LABEL}${C_RESET}"
+else
+  echo "  INFRA — ${MODE_LABEL}"
+fi
+echo "${C_BLUE}════════════════════════════════════════════════════════════${C_RESET}"
+
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 BUCKET="lata-velha-tfstate-${ACCOUNT_ID}"
 
-echo "==> Bucket de estado: $BUCKET"
+echo "${C_DIM}Bucket de estado: $BUCKET${C_RESET}"
 if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-  echo "    Criando bucket..."
+  echo "${C_DIM}  Bucket não existe — criando...${C_RESET}"
   aws s3 mb "s3://$BUCKET" --region "$REGION"
   aws s3api put-bucket-versioning \
     --bucket "$BUCKET" \
     --versioning-configuration Status=Enabled
-  echo "    Bucket criado com versionamento ativado."
+  echo "${C_GREEN}  ✓ Bucket criado com versionamento ativado.${C_RESET}"
 fi
 
 tf_init() {
@@ -91,7 +116,7 @@ export TF_VAR_state_bucket="$BUCKET"
 run_addons() {
   local step_label="$1"
   echo ""
-  echo "==> $step_label — ALB interno + API Gateway + autoscaler"
+  echo "${C_BLUE}==> ${step_label}${C_RESET} ${C_DIM}— ALB interno + API Gateway + autoscaler${C_RESET}"
   tf_init "$BOOTSTRAP_DIR" > /dev/null 2>&1
   export TF_VAR_cluster_endpoint=$(terraform -chdir="$BOOTSTRAP_DIR" output -raw cluster_endpoint)
   export TF_VAR_cluster_ca_data=$(terraform -chdir="$BOOTSTRAP_DIR" output -raw cluster_certificate_authority_data)
@@ -102,18 +127,20 @@ run_addons() {
   else
     terraform -chdir="$ADDONS_DIR" apply $AUTO
   fi
+  echo "${C_GREEN}✓ ${step_label} concluído.${C_RESET}"
 }
 
 run_bootstrap() {
   local step_label="$1"
   echo ""
-  echo "==> $step_label — VPC + EKS + ECR"
+  echo "${C_BLUE}==> ${step_label}${C_RESET} ${C_DIM}— VPC + EKS + ECR${C_RESET}"
   tf_init "$BOOTSTRAP_DIR"
   if $DESTROY; then
     terraform -chdir="$BOOTSTRAP_DIR" destroy $AUTO
   else
     terraform -chdir="$BOOTSTRAP_DIR" apply $AUTO
   fi
+  echo "${C_GREEN}✓ ${step_label} concluído.${C_RESET}"
 }
 
 if $BOOTSTRAP_ONLY; then
@@ -129,6 +156,8 @@ fi
 if $DESTROY; then
   run_addons "[1/2] Destruindo addons"
   run_bootstrap "[2/2] Destruindo bootstrap"
+  echo ""
+  echo "${C_GREEN}✓ Infra base destruída.${C_RESET}"
   exit 0
 fi
 
@@ -136,4 +165,4 @@ run_bootstrap "[1/2] Bootstrap"
 run_addons "[2/2] Addons"
 
 echo ""
-echo "==> Infra base concluída."
+echo "${C_GREEN}✓ Infra base concluída.${C_RESET}"

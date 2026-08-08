@@ -132,6 +132,13 @@ aplicado, `terraform apply` no `addons` falha ao ler esse state (erro de "key no
   último apply do bootstrap para inicializar os providers, sem aplicar nada)
 - **Push em `main`** → `terraform apply` do bootstrap, depois do addons
 
+O apply de cada etapa vive em dois workflows **reusáveis** próprios
+(`.github/workflows/bootstrap.yml` e `addons.yml`, `on: workflow_call`) — o `main.yml` deste
+repo só os chama (`uses: ./.github/workflows/...`) em push para `main`. É a mesma definição que
+o `apply.sh` da raiz do mono repo (via GitHub Actions) chama de fora, na posição certa do
+pipeline completo (depois do `lambda`, no caso do `addons`) — nenhuma lógica de deploy é
+duplicada entre os dois repos.
+
 ### Secrets/vars necessários no repositório
 
 | Nome | Tipo | Descrição |
