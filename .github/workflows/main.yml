@@ -31,7 +31,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Instalar Terraform 1.10
         uses: hashicorp/setup-terraform@v3
@@ -47,10 +47,10 @@ jobs:
         run: |
           terraform -chdir=terraform/bootstrap init -reconfigure \
             -backend-config="bucket=${STATE_BUCKET}" \
-            -backend-config="region=${{ vars.AWS_REGION }}"
+            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}"
           terraform -chdir=terraform/bootstrap plan
         env:
-          TF_VAR_region: ${{ vars.AWS_REGION }}
+          TF_VAR_region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Terraform Plan — addons
         # Le os outputs reais do ultimo apply do bootstrap (state em S3) para
@@ -62,10 +62,10 @@ jobs:
 
           terraform -chdir=terraform/addons init -reconfigure \
             -backend-config="bucket=${STATE_BUCKET}" \
-            -backend-config="region=${{ vars.AWS_REGION }}"
+            -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}"
           terraform -chdir=terraform/addons plan
         env:
-          TF_VAR_region: ${{ vars.AWS_REGION }}
+          TF_VAR_region: ${{ vars.AWS_REGION || 'us-east-1' }}
           TF_VAR_state_bucket: ${{ env.STATE_BUCKET }}
 
   # ============================================================
@@ -83,7 +83,7 @@ jobs:
     uses: ./.github/workflows/bootstrap.yml
     secrets: inherit
     with:
-      aws_region: ${{ vars.AWS_REGION }}
+      aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
   tf-addons:
     name: "CD · Addons"
@@ -91,4 +91,4 @@ jobs:
     uses: ./.github/workflows/addons.yml
     secrets: inherit
     with:
-      aws_region: ${{ vars.AWS_REGION }}
+      aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}

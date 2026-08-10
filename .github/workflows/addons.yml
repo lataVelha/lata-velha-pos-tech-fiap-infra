@@ -55,7 +55,7 @@ jobs:
       cancel-in-progress: false
 
     env:
-      REGION: ${{ inputs.aws_region || vars.AWS_REGION }}
+      REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-east-1' }}
 
     steps:
       - name: Checkout do código
