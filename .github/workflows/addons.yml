@@ -60,6 +60,9 @@ jobs:
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+        with:
+          repository: lataVelha/lata-velha-pos-tech-fiap-infra
+          ref: master
 
       - name: Autenticar na AWS
         uses: aws-actions/configure-aws-credentials@v4
