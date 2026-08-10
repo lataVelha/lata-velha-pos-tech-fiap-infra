@@ -81,6 +81,23 @@ resource "aws_lambda_permission" "app_gateway_invoke_auth_cpf" {
   source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/POST/auth/cpf"
 }
 
+# A mesma lambda tambem serve o OpenAPI do POST /auth/cpf em GET, pro Swagger
+# UI do app (springdoc.swagger-ui.urls) — sem precisar de copia estatica no
+# repo app. Rota publica de proposito, e so documentacao.
+resource "aws_apigatewayv2_route" "auth_cpf_openapi" {
+  api_id    = aws_apigatewayv2_api.this.id
+  route_key = "GET /auth/cpf-openapi.json"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_cpf.id}"
+}
+
+resource "aws_lambda_permission" "app_gateway_invoke_auth_cpf_openapi" {
+  statement_id  = "AllowAppApiGatewayInvokeAuthCpfOpenapi"
+  action        = "lambda:InvokeFunction"
+  function_name = var.auth_cpf_lambda_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/GET/auth/cpf-openapi.json"
+}
+
 # Lambda authorizer (repo lambda) — duplica na borda a verificacao de
 # assinatura/issuer/expiracao do JWT que o app ja faz. Nao decide por role,
 # so rejeita cedo tokens invalidos/ausentes antes de gastar um hop ate o
