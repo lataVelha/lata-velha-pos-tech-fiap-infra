@@ -13,6 +13,11 @@ on:
         description: "Regiao AWS (default: var AWS_REGION deste repo)"
         type: string
         required: false
+      destroy:
+        description: "Destruir o bootstrap (VPC+EKS+ECR) em vez de aplicar"
+        type: boolean
+        required: false
+        default: false
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -74,12 +79,18 @@ jobs:
         env:
           TF_VAR_region: ${{ env.REGION }}
 
-      - name: Terraform Apply — bootstrap
-        run: terraform -chdir=terraform/bootstrap apply -auto-approve
+      - name: Terraform Apply/Destroy — bootstrap
+        run: |
+          if [[ "${{ inputs.destroy }}" == "true" ]]; then
+            terraform -chdir=terraform/bootstrap destroy -auto-approve
+          else
+            terraform -chdir=terraform/bootstrap apply -auto-approve
+          fi
         env:
           TF_VAR_region: ${{ env.REGION }}
 
       - name: Exportar outputs do bootstrap
+        if: inputs.destroy != true
         run: |
           echo "cluster_name → $(terraform -chdir=terraform/bootstrap output -raw cluster_name)"
           echo "vpc_id → $(terraform -chdir=terraform/bootstrap output -raw vpc_id)"

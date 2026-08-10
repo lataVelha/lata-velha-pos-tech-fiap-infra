@@ -23,6 +23,11 @@ on:
         description: "Regiao AWS (default: var AWS_REGION deste repo)"
         type: string
         required: false
+      destroy:
+        description: "Destruir os addons (ALB interno + API Gateway + autoscaler) em vez de aplicar"
+        type: boolean
+        required: false
+        default: false
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -91,8 +96,13 @@ jobs:
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="region=${{ env.REGION }}"
 
-      - name: Terraform Apply — addons
-        run: terraform -chdir=terraform/addons apply -auto-approve
+      - name: Terraform Apply/Destroy — addons
+        run: |
+          if [[ "${{ inputs.destroy }}" == "true" ]]; then
+            terraform -chdir=terraform/addons destroy -auto-approve
+          else
+            terraform -chdir=terraform/addons apply -auto-approve
+          fi
         env:
           TF_VAR_region: ${{ env.REGION }}
           TF_VAR_state_bucket: ${{ env.STATE_BUCKET }}
@@ -101,6 +111,7 @@ jobs:
           TF_VAR_aws_session_token: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Exportar endpoint público da aplicação
+        if: inputs.destroy != true
         run: |
           echo "App (API Gateway) → $(terraform -chdir=terraform/addons output -raw app_api_endpoint)"
           echo "ALB (interno, sem acesso direto) → $(terraform -chdir=terraform/addons output -raw alb_dns_name)"
