@@ -5,14 +5,15 @@
 #   (padrão)   [1/2] Bootstrap (VPC+EKS+ECR) → [2/2] Addons (ALB interno+API Gateway+autoscaler)
 #   --destroy  [1/2] Addons → [2/2] Bootstrap
 #
-# Os addons (API Gateway do app) precisam do ARN da lambda authorizer, que
-# só existe depois do repo lambda ser aplicado — por isso bootstrap e addons
-# podem ser rodados em separado com --bootstrap-only / --addons-only. NUM
-# DEPLOY DO ZERO use as flags: bootstrap-only → infra-db → lambda → addons-only
-# → app. O modo padrão (sem flags, os dois juntos) só funciona se o repo
-# lambda já tiver sido aplicado antes — serve para reaplicar tudo depois que
-# a stack inteira já existe. O apply.sh raiz do mono repo já faz a
-# intercalação certa: infra bootstrap → infra-db → lambda → infra addons → app.
+# Bootstrap e addons continuam sendo dois state/roots Terraform separados
+# (os providers kubectl/helm do addons precisam do EKS já existir — não dá
+# pra criar o cluster e configurar esses providers na mesma apply), mas
+# addons não depende de mais nenhum outro repo: cria só o "casco" do API
+# Gateway (API + VPC Link + Stage, sem rotas). O modo padrão (sem flags, os
+# dois juntos) já funciona num deploy do zero, sem precisar do repo lambda
+# nem do app antes. --bootstrap-only/--addons-only continuam disponíveis
+# pra rodar cada etapa separada quando quiser. O apply.sh raiz do mono repo
+# roda: infra bootstrap → infra addons → infra-db → lambda → app.
 #
 # O RDS (repo infra-db) e o deploy da aplicação (repo app) NÃO são
 # gerenciados por este script — cada um tem seu próprio apply/pipeline.
@@ -21,8 +22,7 @@
 #   ./apply.sh                    — bootstrap + addons, com confirmação interativa
 #   ./apply.sh --auto             — sem confirmação
 #   ./apply.sh --bootstrap-only   — só o bootstrap (VPC+EKS+ECR)
-#   ./apply.sh --addons-only      — só os addons (requer bootstrap já aplicado e,
-#                                    para o API Gateway, o repo lambda já aplicado)
+#   ./apply.sh --addons-only      — só os addons (requer bootstrap já aplicado)
 #   ./apply.sh --destroy          — destroi tudo com confirmação
 #   ./apply.sh --destroy --auto   — destroi tudo sem confirmação
 #

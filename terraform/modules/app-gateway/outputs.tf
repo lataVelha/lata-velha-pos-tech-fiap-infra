@@ -1,13 +1,17 @@
-output "api_endpoint" {
-  description = "URL publica da aplicacao (substitui o acesso direto ao ALB)"
-  value       = aws_apigatewayv2_stage.default.invoke_url
-}
-
 output "api_id" {
   value = aws_apigatewayv2_api.this.id
 }
 
-output "auth_cpf_endpoint" {
-  description = "URL do login por CPF (POST {auth_cpf_endpoint} com {\"cpf\": \"...\"}) — mesma base do api_endpoint"
-  value       = "${aws_apigatewayv2_stage.default.invoke_url}auth/cpf"
+output "api_execution_arn" {
+  description = "execution_arn da API — usado pelos repos lambda/app pra montar o source_arn dos aws_lambda_permission/integrations que eles anexam aqui de fora"
+  value       = aws_apigatewayv2_api.this.execution_arn
+}
+
+output "api_endpoint" {
+  description = "URL base da API (sem rotas ainda — cada consumidor anexa as proprias)"
+  value       = aws_apigatewayv2_stage.default.invoke_url
+}
+
+output "vpc_link_id" {
+  value = aws_apigatewayv2_vpc_link.this.id
 }

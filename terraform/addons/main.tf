@@ -8,22 +8,8 @@ data "terraform_remote_state" "bootstrap" {
   }
 }
 
-# Le o ARN da lambda authorizer (repo lambda) para anexar ao API Gateway do
-# app. Por isso addons roda DEPOIS do repo lambda no pipeline (infra
-# bootstrap -> infra-db -> lambda -> infra addons -> app) — ver apply.sh
-# raiz do mono repo e as flags --bootstrap-only/--addons-only deste script.
-data "terraform_remote_state" "lambda" {
-  backend = "s3"
-  config = {
-    bucket = var.state_bucket
-    key    = var.lambda_state_key
-    region = var.region
-  }
-}
-
 locals {
   bootstrap = data.terraform_remote_state.bootstrap.outputs
-  lambda    = data.terraform_remote_state.lambda.outputs
 }
 
 # SG dos ENIs do VPC Link do API Gateway. Criado na raiz (nao dentro de
@@ -58,14 +44,9 @@ module "alb" {
 module "app_gateway" {
   source = "../modules/app-gateway"
 
-  project_name                    = var.project_name
-  vpc_link_subnet_ids             = local.bootstrap.private_subnet_ids
-  vpc_link_security_group_id      = aws_security_group.vpc_link.id
-  alb_listener_arn                = module.alb.listener_arn
-  authorizer_lambda_invoke_arn    = local.lambda.jwt_authorizer_invoke_arn
-  authorizer_lambda_function_name = local.lambda.jwt_authorizer_function_name
-  auth_cpf_lambda_invoke_arn      = local.lambda.auth_cpf_invoke_arn
-  auth_cpf_lambda_function_name   = local.lambda.auth_cpf_function_name
+  project_name               = var.project_name
+  vpc_link_subnet_ids        = local.bootstrap.private_subnet_ids
+  vpc_link_security_group_id = aws_security_group.vpc_link.id
 }
 
 # Credenciais AWS para o Cluster Autoscaler.

@@ -5,6 +5,16 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "O que rodar (push só roda a CI — deploy de verdade é sempre manual)"
+        type: choice
+        options:
+          - both
+          - bootstrap-only
+          - addons-only
+        default: both
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -72,14 +82,20 @@ jobs:
   # CD · BOOTSTRAP e CD · ADDONS
   # Delegam pros workflows reusaveis (bootstrap.yml, addons.yml) deste
   # mesmo repo — a mesma definicao que o mono repo tambem chama de fora.
-  # Só rodam em push para master (nunca em PR). addons roda depois de
-  # bootstrap (needs) E depois do repo lambda ja ter aplicado (ver
-  # comentario em addons.yml) — isso o GitHub Actions nao enxerga sozinho
-  # quando disparado por push direto neste repo, entao garanta isso na mao.
+  #
+  # Push só roda a CI (plan em PR) — o deploy de verdade (terraform apply)
+  # só roda via disparo manual (Run workflow → mode), nunca automático a
+  # cada push.
+  #
+  # Addons não depende mais do repo lambda (o API Gateway que ele cria é só
+  # o "casco" — API + VPC Link + Stage, sem rotas; quem anexa rota é o
+  # próprio repo lambda/app via terraform_remote_state). Por isso
+  # `mode: both` roda bootstrap + addons em sequência, num disparo só, sem
+  # esperar mais nada.
   # ============================================================
   tf-bootstrap:
     name: "CD · Bootstrap"
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'addons-only'
     uses: ./.github/workflows/bootstrap.yml
     secrets: inherit
     with:
@@ -88,6 +104,11 @@ jobs:
   tf-addons:
     name: "CD · Addons"
     needs: tf-bootstrap
+    if: >
+      always() &&
+      (needs.tf-bootstrap.result == 'success' || needs.tf-bootstrap.result == 'skipped') &&
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.mode != 'bootstrap-only'
     uses: ./.github/workflows/addons.yml
     secrets: inherit
     with:

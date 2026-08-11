@@ -10,11 +10,12 @@ name: Addons
 # Autossuficiente: nao recebe outputs do bootstrap via job — le o state do
 # bootstrap direto (terraform -chdir=terraform/bootstrap output), do mesmo
 # jeito que terraform/apply.sh faz local. So precisa que o bootstrap ja
-# tenha rodado (state publicado no S3) antes desta call.
-#
-# TAMBEM precisa que o repo lambda ja tenha aplicado antes — o modulo
-# app-gateway le o ARN das duas lambdas (auth-cpf + jwt-authorizer) via
-# terraform_remote_state. Sem isso, o apply abaixo falha ao ler esse state.
+# tenha rodado (state publicado no S3) antes desta call — nao depende de
+# mais nenhum outro repo (nem lambda, nem app). O modulo app_gateway cria
+# so o "casco" do API Gateway (API + VPC Link + Stage, sem rotas) — quem
+# anexa rota e' o proprio repo lambda (POST /auth/cpf + authorizer) e o
+# repo app (integracao com o ALB + rotas publicas/protegidas), cada um via
+# terraform_remote_state deste state.
 
 on:
   workflow_call:
