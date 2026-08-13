@@ -9,7 +9,7 @@ output "arn" {
 }
 
 output "listener_arn" {
-  description = "ARN do listener HTTP:80 — usado como integration_uri pelo modulo app-gateway"
+  description = "ARN do listener HTTP:80 — usado pelo repo app na integração"
   value       = aws_lb_listener.http.arn
 }
 

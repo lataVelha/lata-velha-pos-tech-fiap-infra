@@ -8,13 +8,17 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "O que rodar (push só roda a CI — deploy de verdade é sempre manual)"
+        description: "O que rodar (push só roda a CI — deploy de verdade é sempre manual). Pra destroy, NÃO use 'both': rode 'addons-only' primeiro, depois 'bootstrap-only' — a ordem de apply é invertida no destroy (addons tem que sumir antes, senão a AWS recusa apagar a VPC com o ALB ainda dentro dela)"
         type: choice
         options:
           - both
           - bootstrap-only
           - addons-only
         default: both
+      destroy:
+        description: "Destruir em vez de aplicar"
+        type: boolean
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -83,33 +87,60 @@ jobs:
   # Delegam pros workflows reusaveis (bootstrap.yml, addons.yml) deste
   # mesmo repo — a mesma definicao que o mono repo tambem chama de fora.
   #
-  # Push só roda a CI (plan em PR) — o deploy de verdade (terraform apply)
-  # só roda via disparo manual (Run workflow → mode), nunca automático a
-  # cada push.
+  # Push pra master roda bootstrap + addons de verdade (equivalente a
+  # mode=both, destroy=false) — não tem input mode/destroy num push, só no
+  # workflow_dispatch.
   #
   # Addons não depende mais do repo lambda (o API Gateway que ele cria é só
   # o "casco" — API + VPC Link + Stage, sem rotas; quem anexa rota é o
   # próprio repo lambda/app via terraform_remote_state). Por isso
-  # `mode: both` roda bootstrap + addons em sequência, num disparo só, sem
-  # esperar mais nada.
+  # `mode: both` (ou um push) roda bootstrap + addons em sequência, num
+  # disparo só, sem esperar mais nada.
   # ============================================================
+  # Barra a combinação mode=both + destroy=true antes de tocar em qualquer
+  # coisa: pra destruir, addons tem que sumir ANTES do bootstrap (ordem
+  # invertida do apply), e o grafo tf-bootstrap→tf-addons abaixo só serve
+  # pra ordem de apply. Roda em push (sempre passa, destroy nunca é true
+  # via push) e em workflow_dispatch — em PR fica skipped, e
+  # tf-bootstrap/tf-addons (que dependem dele) também ficam.
+  guard-destroy-mode:
+    name: "Guard · destroy não pode usar mode=both"
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Validar combinação mode/destroy
+        run: |
+          if [[ "${{ github.event.inputs.destroy }}" == "true" && "${{ github.event.inputs.mode }}" == "both" ]]; then
+            echo "::error::destroy=true não pode ser combinado com mode=both — a ordem de apply (bootstrap→addons) é invertida no destroy. Rode 'addons-only' com destroy=true primeiro, depois 'bootstrap-only' com destroy=true."
+            exit 1
+          fi
+
   tf-bootstrap:
     name: "CD · Bootstrap"
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'addons-only'
+    needs: guard-destroy-mode
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'addons-only') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/master')
     uses: ./.github/workflows/bootstrap.yml
     secrets: inherit
     with:
       aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      destroy: ${{ github.event.inputs.destroy == 'true' }}
 
   tf-addons:
     name: "CD · Addons"
-    needs: tf-bootstrap
+    needs: [guard-destroy-mode, tf-bootstrap]
     if: >
       always() &&
+      needs.guard-destroy-mode.result == 'success' &&
       (needs.tf-bootstrap.result == 'success' || needs.tf-bootstrap.result == 'skipped') &&
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.mode != 'bootstrap-only'
+      ((github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'bootstrap-only') ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/master'))
     uses: ./.github/workflows/addons.yml
     secrets: inherit
     with:
       aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      destroy: ${{ github.event.inputs.destroy == 'true' }}
