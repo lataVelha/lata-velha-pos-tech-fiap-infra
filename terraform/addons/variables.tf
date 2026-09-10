@@ -62,3 +62,10 @@ variable "aws_session_token" {
   sensitive   = true
   default     = ""
 }
+
+variable "dd_api_key" {
+  description = "Datadog API key para o Agent (APM + Logs)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

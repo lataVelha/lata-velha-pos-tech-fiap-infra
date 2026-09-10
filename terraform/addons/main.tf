@@ -90,3 +90,57 @@ resource "helm_release" "metrics_server" {
     value = "--kubelet-use-node-status-port"
   }
 }
+
+resource "kubernetes_namespace" "datadog" {
+  metadata {
+    name = "datadog"
+  }
+}
+
+resource "kubernetes_secret" "datadog_api_key" {
+  metadata {
+    name      = "datadog-secret"
+    namespace = kubernetes_namespace.datadog.metadata[0].name
+  }
+
+  data = {
+    api-key = var.dd_api_key
+  }
+
+  type = "Opaque"
+}
+
+resource "helm_release" "datadog" {
+  name       = "datadog"
+  repository = "https://helm.datadoghq.com"
+  chart      = "datadog"
+  namespace  = kubernetes_namespace.datadog.metadata[0].name
+  version    = "3.60.0"
+
+  depends_on = [kubernetes_secret.datadog_api_key]
+
+  set {
+    name  = "datadog.apiKeyExistingSecret"
+    value = "datadog-secret"
+  }
+
+  set {
+    name  = "datadog.apm.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "datadog.apm.portEnabled"
+    value = "true"
+  }
+
+  set {
+    name  = "datadog.logs.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "datadog.apm.instrumentation.enabled"
+    value = "true"
+  }
+}
