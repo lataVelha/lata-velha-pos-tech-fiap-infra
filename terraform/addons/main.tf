@@ -143,4 +143,14 @@ resource "helm_release" "datadog" {
     name  = "datadog.apm.instrumentation.enabled"
     value = "true"
   }
+
+  set {
+    name  = "datadog.otlp.receiver.protocols.grpc.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "datadog.otlp.receiver.protocols.http.enabled"
+    value = "true"
+  }
 }
