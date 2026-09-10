@@ -125,6 +125,11 @@ resource "helm_release" "datadog" {
   }
 
   set {
+    name  = "datadog.site"
+    value = "us5.datadoghq.com"
+  }
+
+  set {
     name  = "datadog.apm.enabled"
     value = "true"
   }
