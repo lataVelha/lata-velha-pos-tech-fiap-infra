@@ -125,6 +125,11 @@ resource "helm_release" "datadog" {
   }
 
   set {
+    name  = "datadog.site"
+    value = "us5.datadoghq.com"
+  }
+
+  set {
     name  = "datadog.apm.enabled"
     value = "true"
   }
@@ -141,6 +146,16 @@ resource "helm_release" "datadog" {
 
   set {
     name  = "datadog.apm.instrumentation.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "datadog.otlp.receiver.protocols.grpc.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "datadog.otlp.receiver.protocols.http.enabled"
     value = "true"
   }
 }
