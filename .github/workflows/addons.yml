@@ -36,6 +36,8 @@ on:
         required: true
       AWS_SESSION_TOKEN:
         required: false
+      TF_VAR_dd_api_key:
+        required: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -113,6 +115,7 @@ jobs:
           TF_VAR_aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           TF_VAR_aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           TF_VAR_aws_session_token: ${{ secrets.AWS_SESSION_TOKEN }}
+          TF_VAR_dd_api_key: ${{ secrets.TF_VAR_dd_api_key }}
 
       - name: Exportar endpoint público da aplicação
         if: inputs.destroy != true
