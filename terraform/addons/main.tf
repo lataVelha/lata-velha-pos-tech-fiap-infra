@@ -159,11 +159,12 @@ resource "helm_release" "datadog" {
     value = "true"
   }
 
-  # Ingestao de LOGS via OTLP (/v1/logs). Sem isso o receiver responde 404
-  # na rota de logs — chart default e false, traces e metrics nao sao
-  # afetados.
+  # Ingestao de LOGS via OTLP (/v1/logs). Caminho correto e otlp.logs
+  # (NÃO otlp.receiver.logs — ver template _containers-common-env.yaml do
+  # chart: `{{- with .Values.datadog.otlp.logs }}`). Sem isso o receiver
+  # responde 404 na rota de logs — traces e metrics nao sao afetados.
   set {
-    name  = "datadog.otlp.receiver.logs.enabled"
+    name  = "datadog.otlp.logs.enabled"
     value = "true"
   }
 
