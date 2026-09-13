@@ -158,4 +158,26 @@ resource "helm_release" "datadog" {
     name  = "datadog.otlp.receiver.protocols.http.enabled"
     value = "true"
   }
+
+  # Ingestao de LOGS via OTLP (/v1/logs). Sem isso o receiver responde 404
+  # na rota de logs — chart default e false, traces e metrics nao sao
+  # afetados.
+  set {
+    name  = "datadog.otlp.receiver.logs.enabled"
+    value = "true"
+  }
+
+  # Expoe as portas OTLP (4317/4318) na rede do node via hostPort.
+  # Sem isso o receiver so escuta dentro do pod do Agent — o app envia
+  # para http://$(HOST_IP):4318 e a conexao e recusada (nada chega:
+  # traces, metricas e logs de uma vez).
+  set {
+    name  = "datadog.otlp.receiver.protocols.http.useHostPort"
+    value = "true"
+  }
+
+  set {
+    name  = "datadog.otlp.receiver.protocols.grpc.useHostPort"
+    value = "true"
+  }
 }
