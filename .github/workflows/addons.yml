@@ -38,6 +38,10 @@ on:
         required: false
       TF_VAR_dd_api_key:
         required: false
+      # D2 · DBM: senha do usuario datadog no Postgres (ver
+      # infra-db/datadog-user.sql). Cadastrar como secret no repo infra.
+      TF_VAR_dd_dbm_password:
+        required: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -116,6 +120,7 @@ jobs:
           TF_VAR_aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           TF_VAR_aws_session_token: ${{ secrets.AWS_SESSION_TOKEN }}
           TF_VAR_dd_api_key: ${{ secrets.TF_VAR_dd_api_key }}
+          TF_VAR_dd_dbm_password: ${{ secrets.TF_VAR_dd_dbm_password }}
 
       - name: Exportar endpoint público da aplicação
         if: inputs.destroy != true

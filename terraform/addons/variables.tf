@@ -69,3 +69,19 @@ variable "dd_api_key" {
   sensitive   = true
   default     = ""
 }
+
+# --- D2 · Database Monitoring (DBM) ---
+# Usuario datadog criado no RDS (ver infra-db/datadog-user.sql — passo
+# manual 1x). Senha via TF_VAR_dd_dbm_password no GitHub Actions.
+variable "dd_dbm_username" {
+  description = "Usuario Datadog no Postgres para o check DBM"
+  type        = string
+  default     = "datadog"
+}
+
+variable "dd_dbm_password" {
+  description = "Senha do usuario datadog no Postgres (TF_VAR_ no apply.sh e no GitHub Actions)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

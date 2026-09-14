@@ -8,8 +8,26 @@ data "terraform_remote_state" "bootstrap" {
   }
 }
 
+# D2 · DBM: le o state do infra-db para obter o endpoint do RDS — o Cluster
+# Agent conecta no Postgres para coleta de queries/wait states. Leitura
+# aditiva: nao altera nenhum recurso do infra-db.
+data "terraform_remote_state" "infra_db" {
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    key    = "lata-velha/infra-db/terraform.tfstate"
+    region = var.region
+  }
+}
+
 locals {
   bootstrap = data.terraform_remote_state.bootstrap.outputs
+
+  # rds_endpoint vem como "host:porta" (mesma convencao usada pelo repo lambda)
+  dbm_host    = split(":", data.terraform_remote_state.infra_db.outputs.rds_endpoint)[0]
+  dbm_port    = tonumber(split(":", data.terraform_remote_state.infra_db.outputs.rds_endpoint)[1])
+  # Mesma convencoes de identifier do repo infra-db (modules/rds)
+  dbm_db_identifier = "${var.project_name}-postgres"
 }
 
 # SG dos ENIs do VPC Link do API Gateway. Criado na raiz (nao dentro de
@@ -180,5 +198,41 @@ resource "helm_release" "datadog" {
   set {
     name  = "datadog.otlp.receiver.protocols.grpc.useHostPort"
     value = "true"
+  }
+
+  # ------------------------------------------------------------------
+  # D2 · Database Monitoring (DBM) — RDS PostgreSQL.
+  # Configuracao pelo mecanismo CLUSTER CHECK (clusterAgent.confd com
+  # cluster_check: true): roda em exatamente 1 Agent por ciclo, mesmo
+  # com o Agent em DaemonSet nos nodes. O chart 3.60 NAO tem values
+  # datadog.databaseMonitoring — a doc oficial de DBM/RDS no Helm usa
+  # o check postgres do Cluster Agent.
+  # Requer usuario datadog criado no RDS com grants (ver
+  # infra-db/datadog-user.sql — passo manual 1x, runners do GH Actions
+  # nao alcancam o RDS privado).
+  # aws.instance_endpoint habilita metricas aprimoradas do RDS via API.
+  # ------------------------------------------------------------------
+  set {
+    name  = "clusterAgent.confd.postgres.yaml"
+    value = yamlencode({
+      cluster_check = true
+      init_config   = {}
+      instances = [
+        {
+          dbm      = true
+          host     = local.dbm_host
+          port     = local.dbm_port
+          username = var.dd_dbm_username
+          password = var.dd_dbm_password
+          aws = {
+            instance_endpoint = "https://${local.dbm_host}"
+            region            = var.region
+          }
+          tags = [
+            "dbinstanceidentifier:${local.dbm_db_identifier}",
+          ]
+        },
+      ]
+    })
   }
 }
