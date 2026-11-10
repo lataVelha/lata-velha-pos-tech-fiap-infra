@@ -1,0 +1,118 @@
+name: Messaging (SNS/SQS)
+
+# Reusável (workflow_call): chamado pelo mono repo depois dos addons e antes
+# dos serviços. Também aceita workflow_dispatch para operar isoladamente.
+#
+# Provisiona o módulo terraform/messaging (SNS + 3 filas + 3 DLQs +
+# subscriptions + alarmes). State próprio:
+# lata-velha/infra-messaging/terraform.tfstate.
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        description: "Região AWS (default: var AWS_REGION deste repo)"
+        type: string
+        required: false
+      destroy:
+        description: "Destruir o barramento em vez de aplicar"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      destroy:
+        description: "Destruir o barramento em vez de aplicar"
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  messaging:
+    name: "CD · infra messaging"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    concurrency:
+      group: infra-messaging
+      cancel-in-progress: false
+
+    env:
+      REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-east-1' }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+        with:
+          repository: lataVelha/lata-velha-pos-tech-fiap-infra
+          ref: master
+
+      - name: Autenticar na AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Validar credenciais AWS
+        run: aws sts get-caller-identity
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: Resolver bucket de estado (S3)
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "STATE_BUCKET=lata-velha-tfstate-${ACCOUNT_ID}" >> $GITHUB_ENV
+
+      - name: Terraform fmt/validate
+        if: inputs.destroy != true
+        run: |
+          terraform -chdir=terraform/messaging fmt -check -recursive
+          terraform -chdir=terraform/messaging init -backend=false
+          terraform -chdir=terraform/messaging validate
+
+      - name: Terraform Init
+        run: |
+          terraform -chdir=terraform/messaging init -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="region=${{ env.REGION }}"
+
+      - name: Terraform Apply
+        if: inputs.destroy != true
+        run: terraform -chdir=terraform/messaging apply -auto-approve
+        env:
+          TF_VAR_region: ${{ env.REGION }}
+
+      - name: Terraform Destroy
+        if: inputs.destroy == true
+        run: terraform -chdir=terraform/messaging destroy -auto-approve
+        env:
+          TF_VAR_region: ${{ env.REGION }}
+
+      - name: Publicar sumário
+        run: |
+          {
+            echo "## infra-messaging"
+            echo ""
+            echo "| campo | valor |"
+            echo "|---|---|"
+            echo "| operação | \`${{ inputs.destroy == true && 'destroy' || 'apply' }}\` |"
+            echo "| state | \`lata-velha/infra-messaging/terraform.tfstate\` |"
+            echo "| região | \`${REGION}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ inputs.destroy }}" != "true" ]]; then
+            terraform -chdir=terraform/messaging output >> "$GITHUB_STEP_SUMMARY"
+          fi

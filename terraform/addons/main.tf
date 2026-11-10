@@ -145,8 +145,17 @@ resource "helm_release" "datadog" {
   }
 
   set {
+    name  = "datadog.clusterName"
+    value = "lata-velha-prod"
+  }
+
+  # OTel SDK é usado em todos os serviços (app/os/inventory/billing). Com o
+  # Admission Controller ligado, o Java Agent do Datadog seria injetado e
+  # duplicaria spans. Os Deployments também carregam
+  # admission.datadoghq.com/enabled=false como defesa em profundidade.
+  set {
     name  = "datadog.apm.instrumentation.enabled"
-    value = "true"
+    value = "false"
   }
 
   set {
