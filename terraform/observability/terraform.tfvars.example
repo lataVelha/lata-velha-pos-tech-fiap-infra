@@ -1,0 +1,11 @@
+# Copie para terraform.tfvars (não versionado) se quiser fixar valores.
+# As chaves vêm de DD_API_KEY/DD_APP_KEY (nunca versionar).
+
+# dd_api_key = ""
+# dd_app_key = ""
+dd_api_url = "https://api.us5.datadoghq.com/"
+environment = "prod"
+team        = "lata-velha"
+
+alert_recipients = []
+# alert_recipients = ["@slack-lata-velha-alerts"]

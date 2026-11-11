@@ -1,0 +1,18 @@
+# Copie para terraform.tfvars (não versionado) e ajuste se necessário.
+# Todos os valores abaixo são os defaults — o arquivo é opcional.
+
+region      = "us-east-1"
+project_name = "lata-velha"
+environment = "prod"
+
+message_retention_seconds     = 345600   # 4 dias
+dlq_message_retention_seconds = 1209600  # 14 dias
+visibility_timeout_seconds    = 120
+max_receive_count             = 5
+
+# E-mail opcional para receber os alarmes de DLQ/idade de fila.
+alarm_email = ""
+
+# AWS Academy: false (LabRole no node). AWS real: true.
+enable_irsa  = false
+cluster_name = "lata-velha-eks"

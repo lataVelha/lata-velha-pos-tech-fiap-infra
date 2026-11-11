@@ -7,8 +7,10 @@ Cluster Autoscaler) usando **Terraform >= 1.10** (lock de estado nativo do S3). 
 **Ponto de entrada único:** existe **um só** API Gateway (HTTP API) para tudo. O ALB é
 **interno** (sem IP público) e só aceita tráfego do VPC Link desse API Gateway.
 
-Este repo cria só o **"casco"** do API Gateway (API + VPC Link + Stage, sem rotas) — quem usa é
-que anexa rota via `terraform_remote_state` nos outputs daqui.
+Este repo cria o **"casco"** do API Gateway (API + VPC Link + Stage, sem rotas) e os **target
+groups/listener rules path-based** do ALB. O stack `terraform/edge` é o dono único da integração
+e das rotas (públicas + catch-all protegido), aplicado depois do `lambda`. O `lambda` anexa
+apenas `POST /auth/cpf`; os serviços não criam mais recursos de borda.
 
 ## Sumário
 
@@ -25,7 +27,10 @@ que anexa rota via `terraform_remote_state` nos outputs daqui.
 
 ## Dependências
 
-Não depende de nenhum outro repo deste projeto.
+`bootstrap`, `addons` e `messaging` não dependem de nenhum outro repo deste projeto.
+
+O stack `edge` roda depois do `lambda` (de onde lê o `jwt_authorizer_id`) e do
+`addons` (de onde lê o `api_id`, o listener do ALB e o VPC Link).
 
 ## Estrutura
 
@@ -36,8 +41,10 @@ terraform/
 │   └── backend.tf            # Estado em S3: lata-velha/bootstrap/terraform.tfstate
 ├── addons/                   # Etapa 2: ALB interno + "casco" do API Gateway + Cluster Autoscaler
 │   └── backend.tf            # Estado em S3: lata-velha/infra-addons/terraform.tfstate
+├── edge/                     # Etapa 3: integração + rotas do API Gateway (públicas/protegidas)
+│   └── backend.tf            # Estado em S3: lata-velha/edge/terraform.tfstate
 └── modules/
-    ├── vpc/  ├── eks/  ├── alb/                # ALB interno, sem SG aberto pra internet
+    ├── vpc/  ├── eks/  ├── alb/                # ALB interno + target groups/listener rules por path
     ├── app-gateway/                            # API Gateway (HTTP API) + VPC Link — só o casco
     └── cluster-autoscaler/
 ```
@@ -63,11 +70,11 @@ juntos (padrão) ou separados via `--bootstrap-only`/`--addons-only`.
 
 ## Outputs
 
-| Bootstrap | Addons |
-| --- | --- |
-| `vpc_id`, `vpc_cidr`, `private_subnet_ids` | `app_api_id`, `app_api_execution_arn`, `app_api_endpoint` |
-| `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data` | `vpc_link_id`, `alb_listener_arn`, `alb_dns_name` |
-| `cluster_security_group_id`, `node_asg_name` | |
+| Bootstrap | Addons | Edge |
+| --- | --- | --- |
+| `vpc_id`, `vpc_cidr`, `private_subnet_ids` | `app_api_id`, `app_api_execution_arn`, `app_api_endpoint` | `api_endpoint` |
+| `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data` | `vpc_link_id`, `alb_listener_arn`, `alb_dns_name` | `integration_id`, `route_keys` |
+| `cluster_security_group_id`, `node_asg_name` | | |
 
 ## CI/CD (GitHub Actions)
 
@@ -77,12 +84,18 @@ juntos (padrão) ou separados via `--bootstrap-only`/`--addons-only`.
   `addons-only`) e `destroy`. **Não combine `destroy: true` com `mode: both`** — a ordem
   inverte no destroy (addons antes do bootstrap); use `addons-only` e depois `bootstrap-only`
   (um guard bloqueia essa combinação com erro claro).
+- **`edge.yml`** → workflow reusável do stack `edge` (integração + rotas do API Gateway),
+  chamado pelo mono depois do `lambda`; aceita `destroy`.
 
-O apply de cada etapa vive em dois workflows reusáveis próprios (`bootstrap.yml`/`addons.yml`,
-`on: workflow_call`, aceitam um input `destroy`).
+O apply de cada etapa vive em workflows reusáveis próprios (`bootstrap.yml`/`addons.yml`/
+`messaging.yml`/`edge.yml`, `on: workflow_call`, aceitam um input `destroy`).
 
 **Secrets/vars**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (AWS
 Academy), `AWS_REGION` (var, opcional — default `us-east-1`).
+
+**Cutover do app**: a var `APP_ENABLED` (default `true`) controla o default action do ALB.
+Com `APP_ENABLED=false`, os paths não roteados pelo ALB viram `404` e o app deixa de ser
+alcançável. O mono e este repo passam a var para o workflow `addons.yml`.
 
 > Na primeira vez, o `bootstrap` ainda não existe — PRs abertas antes do primeiro apply vão
 > falhar no `plan` do `addons`. Rode o primeiro apply antes de abrir PRs que dependam dele.
@@ -100,6 +113,9 @@ cd terraform
 ./apply.sh --bootstrap-only   # só VPC + EKS + ECR
 ./apply.sh --addons-only      # só ALB interno + API Gateway + autoscaler
 ./apply.sh --destroy          # destroi addons e depois bootstrap
+
+# depois do lambda (authorizer):
+cd edge && ./apply.sh --auto
 ```
 
 ### Manualmente (sem o script)

@@ -39,3 +39,31 @@ variable "health_check_path" {
   type        = string
   default     = "/actuator/health/readiness"
 }
+
+variable "app_enabled" {
+  description = "Mantem o app como default action do ALB. false = catch-all 404 (cutover concluido)"
+  type        = bool
+  default     = true
+}
+
+variable "services" {
+  description = "Target groups por servico migrado do app (NodePort + health check)"
+  type = map(object({
+    node_port = number
+    health    = optional(string, "/actuator/health/readiness")
+  }))
+  default = {}
+}
+
+# A AWS limita 5 valores por condicao e 6 wildcards por listener rule. Por
+# isso as regras sao declaradas separadamente dos target groups e os paths
+# de um mesmo servico podem ocupar mais de uma regra (prioridades distintas).
+variable "listener_rules" {
+  description = "Listener rules path-based; cada item aponta para um servico do mapa services"
+  type = map(object({
+    service  = string
+    priority = number
+    paths    = list(string)
+  }))
+  default = {}
+}

@@ -10,6 +10,59 @@ data "terraform_remote_state" "bootstrap" {
 
 locals {
   bootstrap = data.terraform_remote_state.bootstrap.outputs
+
+  # Target groups path-based dos servicos que sairam do app. O API Gateway
+  # compartilhado continua encaminhando tudo para o listener do ALB; o ALB
+  # decide o destino pelo path. O app fica como default action ate o
+  # cutover (app_enabled = false).
+  edge_target_groups = {
+    os        = { node_port = 30082, health = "/actuator/health/readiness" }
+    inventory = { node_port = 30083, health = "/actuator/health/readiness" }
+  }
+
+  # A AWS permite no maximo 5 valores de condicao e 6 wildcards por regra.
+  # Por isso os paths do os-service foram divididos em 3 listener rules.
+  edge_listener_rules = {
+    # Health público do API Gateway: responde pelo os-service depois do
+    # cutover (o app deixa de ser default). Prioridade mais alta (menor
+    # numero) que as demais regras.
+    health = {
+      service  = "os"
+      priority = 10
+      paths    = ["/actuator/health", "/actuator/health/*"]
+    }
+    os_1 = {
+      service  = "os"
+      priority = 20
+      paths = [
+        "/ordens-servico", "/ordens-servico/*",
+        "/historico", "/historico/*",
+        "/funcionarios",
+      ]
+    }
+    os_2 = {
+      service  = "os"
+      priority = 21
+      paths = [
+        "/funcionarios/*",
+        "/servicos", "/servicos/*",
+        "/proprietarios", "/proprietarios/*",
+      ]
+    }
+    os_3 = {
+      service  = "os"
+      priority = 22
+      paths = [
+        "/veiculos", "/veiculos/*",
+        "/auth/*",
+      ]
+    }
+    inventory = {
+      service  = "inventory"
+      priority = 30
+      paths    = ["/pecas", "/pecas/*"]
+    }
+  }
 }
 
 # SG dos ENIs do VPC Link do API Gateway. Criado na raiz (nao dentro de
@@ -39,6 +92,10 @@ module "alb" {
   node_security_group_id     = local.bootstrap.cluster_security_group_id
   node_asg_name              = local.bootstrap.node_asg_name
   vpc_link_security_group_id = aws_security_group.vpc_link.id
+
+  app_enabled    = var.app_enabled
+  services       = local.edge_target_groups
+  listener_rules = local.edge_listener_rules
 }
 
 module "app_gateway" {
@@ -145,8 +202,17 @@ resource "helm_release" "datadog" {
   }
 
   set {
+    name  = "datadog.clusterName"
+    value = "lata-velha-prod"
+  }
+
+  # OTel SDK é usado em todos os serviços (app/os/inventory/billing). Com o
+  # Admission Controller ligado, o Java Agent do Datadog seria injetado e
+  # duplicaria spans. Os Deployments também carregam
+  # admission.datadoghq.com/enabled=false como defesa em profundidade.
+  set {
     name  = "datadog.apm.instrumentation.enabled"
-    value = "true"
+    value = "false"
   }
 
   set {
