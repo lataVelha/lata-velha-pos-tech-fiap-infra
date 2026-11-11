@@ -9,11 +9,12 @@
 # (os providers kubectl/helm do addons precisam do EKS já existir — não dá
 # pra criar o cluster e configurar esses providers na mesma apply), mas
 # addons não depende de mais nenhum outro repo: cria só o "casco" do API
-# Gateway (API + VPC Link + Stage, sem rotas). O modo padrão (sem flags, os
-# dois juntos) já funciona num deploy do zero, sem precisar do repo lambda
-# nem do app antes. --bootstrap-only/--addons-only continuam disponíveis
-# pra rodar cada etapa separada quando quiser. O apply.sh raiz do mono repo
-# roda: infra bootstrap → infra addons → infra-db → lambda → app.
+# Gateway (API + VPC Link + Stage, sem rotas) e os target groups/listener
+# rules path-based dos servicos. O modo padrão (sem flags, os dois juntos)
+# já funciona num deploy do zero. --bootstrap-only/--addons-only continuam
+# disponíveis pra rodar cada etapa separada. O apply.sh raiz do mono repo
+# roda: infra bootstrap → infra addons → infra-db → lambda → app (opcional)
+# → servicos → edge (integracao + rotas do API Gateway).
 #
 # O RDS (repo infra-db) e o deploy da aplicação (repo app) NÃO são
 # gerenciados por este script — cada um tem seu próprio apply/pipeline.
@@ -112,6 +113,9 @@ export TF_VAR_aws_access_key_id="${AWS_ACCESS_KEY_ID:-$(aws configure get aws_ac
 export TF_VAR_aws_secret_access_key="${AWS_SECRET_ACCESS_KEY:-$(aws configure get aws_secret_access_key 2>/dev/null || echo '')}"
 export TF_VAR_aws_session_token="${AWS_SESSION_TOKEN:-$(aws configure get aws_session_token 2>/dev/null || echo '')}"
 export TF_VAR_state_bucket="$BUCKET"
+# app_enabled=false conclui o cutover: paths nao roteados pelo ALB viram 404
+# em vez de cair no app. Default true preserva o comportamento anterior.
+export TF_VAR_app_enabled="${APP_ENABLED:-${TF_VAR_app_enabled:-true}}"
 
 run_addons() {
   local step_label="$1"

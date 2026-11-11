@@ -81,6 +81,7 @@ jobs:
         env:
           TF_VAR_region: ${{ vars.AWS_REGION || 'us-east-1' }}
           TF_VAR_state_bucket: ${{ env.STATE_BUCKET }}
+          TF_VAR_app_enabled: ${{ vars.APP_ENABLED != 'false' }}
 
   # ============================================================
   # CD · BOOTSTRAP e CD · ADDONS
@@ -144,3 +145,4 @@ jobs:
     with:
       aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
       destroy: ${{ github.event.inputs.destroy == 'true' }}
+      app_enabled: ${{ vars.APP_ENABLED != 'false' }}

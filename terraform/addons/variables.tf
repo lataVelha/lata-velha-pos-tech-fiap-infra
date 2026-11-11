@@ -69,3 +69,9 @@ variable "dd_api_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "app_enabled" {
+  description = "Mantem o app como default action do ALB. false = paths nao roteados viram 404 (cutover)"
+  type        = bool
+  default     = true
+}

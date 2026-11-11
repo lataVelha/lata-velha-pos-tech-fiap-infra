@@ -1,0 +1,131 @@
+name: Edge
+
+# Reusavel (workflow_call): dono unico da borda do API Gateway compartilhado
+# (integracao com o ALB + rotas publicas/protegidas). Chamado pelo mono
+# depois do lambda (authorizer) e antes/depois dos servicos, conforme a
+# ordem do pipeline.
+#
+# Pre-requisitos: bootstrap, addons e lambda aplicados.
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        description: "Regiao AWS (default: var AWS_REGION deste repo)"
+        type: string
+        required: false
+      destroy:
+        description: "Destruir a integracao e as rotas do API Gateway"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      destroy:
+        description: "Destruir a integracao e as rotas do API Gateway"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  validate:
+    name: "CI · Terraform validate"
+    if: inputs.destroy != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout do codigo
+        uses: actions/checkout@v4
+        with:
+          repository: lataVelha/lata-velha-pos-tech-fiap-infra
+          ref: master
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: terraform fmt/validate
+        working-directory: terraform/edge
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
+
+  apply:
+    name: "CD · Edge · API Gateway"
+    needs: validate
+    if: always() && (inputs.destroy == true || needs.validate.result == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    concurrency:
+      group: infra-edge
+      cancel-in-progress: false
+
+    env:
+      REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-east-1' }}
+
+    steps:
+      - name: Checkout do codigo
+        uses: actions/checkout@v4
+        with:
+          repository: lataVelha/lata-velha-pos-tech-fiap-infra
+          ref: master
+
+      - name: Autenticar na AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: Resolver bucket de estado (S3)
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "TF_VAR_state_bucket=lata-velha-tfstate-${ACCOUNT_ID}" >> "$GITHUB_ENV"
+          echo "TF_VAR_region=${REGION}" >> "$GITHUB_ENV"
+
+      - name: Terraform Init
+        working-directory: terraform/edge
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${TF_VAR_state_bucket}" \
+            -backend-config="region=${REGION}"
+
+      - name: Terraform Apply/Destroy
+        working-directory: terraform/edge
+        run: |
+          if [[ "${{ inputs.destroy }}" == "true" ]]; then
+            terraform destroy -auto-approve
+            echo "### Edge destruido" >> "$GITHUB_STEP_SUMMARY"
+          else
+            terraform apply -auto-approve
+            {
+              echo "### Edge aplicado"
+              echo ""
+              echo "| campo | valor |"
+              echo "|---|---|"
+              echo "| api | $(terraform output -raw api_endpoint) |"
+              echo "| rotas | $(terraform output -json route_keys | tr -d '\n') |"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

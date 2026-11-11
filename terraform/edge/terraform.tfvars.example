@@ -1,0 +1,6 @@
+# Copie para terraform.tfvars se quiser rodar sem o apply.sh.
+# O apply.sh injeta state_bucket/region via TF_VAR_.
+region      = "us-east-1"
+environment = "prod"
+
+# state_bucket = "lata-velha-tfstate-<account-id>"
