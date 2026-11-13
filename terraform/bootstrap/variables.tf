@@ -35,9 +35,15 @@ variable "node_instance_type" {
 }
 
 variable "node_desired_size" {
-  description = "Quantidade desejada de nodes (minimo de folga para rollout; o autoscaler cresce a partir daqui)"
+  description = "Quantidade desejada de nodes (o bootstrap sobe isso antes dos workloads; o autoscaler pode reduzir depois)"
   type        = number
-  default     = 3
+  # 4 nodes x t3.small (2 GiB) = 8 GiB. Os 4 workloads rolam juntos
+  # (app + os + inventory + billing, 2 replicas + 1 de surge cada) + o pod do
+  # MongoDB: ~6.4 GiB de requests, e o cluster-autoscaler leva ~7 min para
+  # reagir — com 3 nodes o rollout do inventory estourava o timeout de 10 min
+  # do provider kubectl. 4 nodes deixam a janela de deploy caber sem depender
+  # do autoscaler; max_size=8 continua disponivel para picos de HPA.
+  default = 4
 }
 
 variable "node_min_size" {
