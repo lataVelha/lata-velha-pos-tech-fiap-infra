@@ -35,20 +35,20 @@ variable "node_instance_type" {
 }
 
 variable "node_desired_size" {
-  description = "Quantidade desejada de nodes"
+  description = "Quantidade desejada de nodes (minimo de folga para rollout; o autoscaler cresce a partir daqui)"
+  type        = number
+  default     = 3
+}
+
+variable "node_min_size" {
+  description = "Minimo de nodes (nunca menos que 2: com 1 node qualquer rolling update fica sem folga)"
   type        = number
   default     = 2
 }
 
-variable "node_min_size" {
-  description = "Minimo de nodes"
-  type        = number
-  default     = 1
-}
-
 variable "node_max_size" {
-  description = "Maximo de nodes (deve suportar o maxReplicas do HPA)"
+  description = "Maximo de nodes. Precisa suportar os 4 deploys de workload em paralelo (app + os + inventory + billing, 2 replicas cada, 512Mi/pod, maxSurge 1) — 4 nodes (valor antigo) nao cabia e o rollout estourava por pod Pending"
   type        = number
-  default     = 4
+  default     = 8
 }
 
