@@ -22,6 +22,12 @@ spec:
 
 --==MYBOUNDARY==--
 EOT
+
+  # O role dos nodes ganha um access entry tipo EC2 (username
+  # system:node:{{SessionName}}), que e o tipo exigido quando o node name e o
+  # instance ID (feature gate InstanceIdNodeName). Como um principal so pode
+  # ter um access entry, ele nao pode aparecer tambem como admin.
+  admin_arns = [for arn in var.cluster_admin_arns : arn if arn != var.iam_role_arn]
 }
 
 resource "aws_eks_cluster" "this" {
@@ -41,11 +47,24 @@ resource "aws_eks_cluster" "this" {
 }
 
 resource "aws_eks_access_entry" "admin" {
-  for_each = toset(var.cluster_admin_arns)
+  for_each = toset(local.admin_arns)
 
   cluster_name  = aws_eks_cluster.this.name
   principal_arn = each.value
   type          = "STANDARD"
+}
+
+# EKS managed node groups criam por padrao um access entry EC2_LINUX
+# (username system:node:{{EC2PrivateDNSName}}). Com InstanceIdNodeName o node
+# se registra como instance ID, entao o username precisa ser
+# system:node:{{SessionName}} (type EC2), senao o kubelet autentica mas o
+# Node Authorizer rejeita o registro ("can only access ... its own Node").
+resource "aws_eks_access_entry" "nodes" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.iam_role_arn
+  type          = "EC2"
+
+  depends_on = [aws_eks_cluster.this]
 }
 
 resource "aws_eks_access_policy_association" "admin" {
