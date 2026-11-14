@@ -73,6 +73,16 @@ locals {
       priority = 50
       paths    = ["/swagger-ui.html", "/swagger-ui/*", "/v3/api-docs", "/v3/api-docs/*"]
     }
+    billing_swagger = {
+      service  = "billing"
+      priority = 51
+      paths    = ["/billing/swagger-ui.html", "/billing/swagger-ui/*", "/billing/v3/api-docs", "/billing/v3/api-docs/*"]
+    }
+    inventory_swagger = {
+      service  = "inventory"
+      priority = 52
+      paths    = ["/inventory/swagger-ui.html", "/inventory/swagger-ui/*", "/inventory/v3/api-docs", "/inventory/v3/api-docs/*"]
+    }
   }
 }
 

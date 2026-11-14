@@ -36,11 +36,23 @@ locals {
   public_routes = [
     "ANY /actuator/health",
     "ANY /actuator/health/{proxy+}",
+    # os-service swagger
     "GET /swagger-ui.html",
     "ANY /swagger-ui/{proxy+}",
     "GET /v3/api-docs",
     "ANY /v3/api-docs/{proxy+}",
     "GET /v3/api-docs.yaml",
+    # billing-service swagger
+    "GET /billing/swagger-ui.html",
+    "ANY /billing/swagger-ui/{proxy+}",
+    "GET /billing/v3/api-docs",
+    "ANY /billing/v3/api-docs/{proxy+}",
+    # inventory-service swagger
+    "GET /inventory/swagger-ui.html",
+    "ANY /inventory/swagger-ui/{proxy+}",
+    "GET /inventory/v3/api-docs",
+    "ANY /inventory/v3/api-docs/{proxy+}",
+    # lambda auth-cpf: /auth/swagger-ui.html e /auth/cpf-openapi.json
     "ANY /auth/{proxy+}",
     "POST /ordens-servico/{id}/aprovacao-orcamento",
   ]
