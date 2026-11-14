@@ -1,3 +1,29 @@
+locals {
+  # O AWS Academy aplica uma SCP que nega ec2:DescribeInstances ao LabRole.
+  # Sem o feature gate, o nodeadm consulta o PrivateDnsName via
+  # DescribeInstances durante o boot e o node nunca entra no cluster
+  # ("exceeded max wait time for InstanceCondition waiter"). Com
+  # InstanceIdNodeName, o node usa o instance ID como nome e o bootstrap
+  # nao depende mais da API do EC2. O restante do NodeConfig (cluster,
+  # endpoint, CA, CIDR) continua sendo injetado pelo EKS e mesclado a este
+  # user data.
+  node_user_data = <<-EOT
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
+
+--==MYBOUNDARY==
+Content-Type: application/node.eks.aws
+
+apiVersion: node.eks.aws/v1alpha1
+kind: NodeConfig
+spec:
+  featureGates:
+    InstanceIdNodeName: true
+
+--==MYBOUNDARY==--
+EOT
+}
+
 resource "aws_eks_cluster" "this" {
   name     = var.cluster_name
   version  = var.kubernetes_version
@@ -47,6 +73,9 @@ resource "aws_launch_template" "nodes" {
     http_tokens                 = "optional"
     http_put_response_hop_limit = 2
   }
+
+  # Mesclado pelo EKS com o NodeConfig que ele injeta (cluster/endpoint/CA).
+  user_data = base64encode(local.node_user_data)
 
   lifecycle {
     create_before_destroy = true
