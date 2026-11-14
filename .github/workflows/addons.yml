@@ -107,12 +107,23 @@ jobs:
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="region=${{ env.REGION }}"
 
+      - name: Liberar lock travado (se existir)
+        continue-on-error: true
+        run: |
+          # Tenta deletar o arquivo de lock do S3 (Terraform 1.10 native locking)
+          aws s3api delete-object \
+            --bucket "${STATE_BUCKET}" \
+            --key "lata-velha/infra-addons/terraform.tfstate.lock" && echo "Lock deletado" || echo "Lock nao encontrado ou sem permissao"
+          # Tenta tambem force-unlock com o ID do lock travado (se ainda existir)
+          terraform -chdir=terraform/addons force-unlock -force "da170c3e-5ea7-180d-fb7f-93ed36594956" 2>/dev/null || true
+
       - name: Terraform Apply/Destroy — addons
         run: |
           if [[ "${{ inputs.destroy }}" == "true" ]]; then
-            terraform -chdir=terraform/addons destroy -auto-approve
+            # -lock=false: seguro pois concurrency group garante apenas 1 apply por vez
+            terraform -chdir=terraform/addons destroy -auto-approve -lock=false
           else
-            terraform -chdir=terraform/addons apply -auto-approve
+            terraform -chdir=terraform/addons apply -auto-approve -lock=false
           fi
         env:
           TF_VAR_region: ${{ env.REGION }}

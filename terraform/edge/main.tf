@@ -52,8 +52,10 @@ locals {
     "ANY /inventory/swagger-ui/{proxy+}",
     "GET /inventory/v3/api-docs",
     "ANY /inventory/v3/api-docs/{proxy+}",
-    # lambda auth-cpf: /auth/swagger-ui.html e /auth/cpf-openapi.json
-    "ANY /auth/{proxy+}",
+    # lambda auth-cpf: rotas de swagger e openapi criadas diretamente no repo
+    # lambda (apontam para integracao Lambda, nao ALB). Sem rota /auth/ aqui.
+    # Webhook do Mercado Pago — chamado pela plataforma sem token JWT.
+    "POST /pagamentos/webhook",
     "POST /ordens-servico/{id}/aprovacao-orcamento",
   ]
 }
