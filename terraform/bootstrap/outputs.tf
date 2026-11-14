@@ -31,12 +31,8 @@ output "public_subnet_ids" {
 }
 
 output "private_subnet_ids" {
-  description = "Usado pelo repo infra-db para provisionar o RDS nesta VPC"
+  description = "Subnets privadas usadas pelos workloads e pelos RDS proprios dos servicos"
   value       = module.vpc.private_subnet_ids
-}
-
-output "ecr_repository_url" {
-  value = aws_ecr_repository.app.repository_url
 }
 
 output "kubernetes_version" {

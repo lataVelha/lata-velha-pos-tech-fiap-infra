@@ -88,9 +88,9 @@ resource "aws_autoscaling_attachment" "this" {
 }
 
 # --------------------------------------------------------------------------
-# Servicos migrados do app: um target group + listener rule path-based por
-# servico. O app continua como default action ate o cutover (app_enabled) e
-# deixa de ser destino dos paths listados aqui.
+# Um target group + listener rule path-based por servico. O monolito foi
+# removido: app_enabled=false (default) cria o catch-all 404 e nenhum path
+# cai no target group legado.
 # --------------------------------------------------------------------------
 resource "aws_lb_target_group" "svc" {
   for_each = var.services
@@ -156,9 +156,10 @@ resource "aws_security_group_rule" "alb_to_nodes_svc" {
   description              = "ALB to EKS nodes (NodePort ${each.value.node_port} - ${each.key})"
 }
 
-# Cutover concluido: nenhuma regra de servico casou -> 404, em vez de cair
-# no app. A default action continua no app para rollback; esta regra so e
-# avaliada depois das regras de servico (priority 50000).
+# Nenhuma regra de servico casou -> 404, em vez de cair no target group
+# legado (que nao tem pods). A default action continua apontando para ele
+# apenas como escape hatch de rollback; esta regra e avaliada depois das
+# regras de servico (priority 50000).
 resource "aws_lb_listener_rule" "catch_all_404" {
   count = var.app_enabled ? 0 : 1
 

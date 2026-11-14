@@ -30,10 +30,10 @@ on:
         required: false
         default: false
       app_enabled:
-        description: "Mantem o app como default do ALB (false = 404 para paths nao roteados)"
+        description: "Mantem o alvo legado do monolito como default do ALB (false = 404 para paths nao roteados)"
         type: boolean
         required: false
-        default: true
+        default: false
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true

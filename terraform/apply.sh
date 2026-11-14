@@ -2,7 +2,7 @@
 #
 # apply.sh — pipeline local e destroy da infra base:
 #
-#   (padrão)   [1/2] Bootstrap (VPC+EKS+ECR) → [2/2] Addons (ALB interno+API Gateway+autoscaler)
+#   (padrão)   [1/2] Bootstrap (VPC+EKS) → [2/2] Addons (ALB interno+API Gateway+autoscaler)
 #   --destroy  [1/2] Addons → [2/2] Bootstrap
 #
 # Bootstrap e addons continuam sendo dois state/roots Terraform separados
@@ -13,16 +13,16 @@
 # rules path-based dos servicos. O modo padrão (sem flags, os dois juntos)
 # já funciona num deploy do zero. --bootstrap-only/--addons-only continuam
 # disponíveis pra rodar cada etapa separada. O apply.sh raiz do mono repo
-# roda: infra bootstrap → infra addons → infra-db → lambda → app (opcional)
-# → servicos → edge (integracao + rotas do API Gateway).
+# roda: infra bootstrap → infra addons → infra messaging → os/inventory/
+# billing → lambda → edge (integracao + rotas do API Gateway).
 #
-# O RDS (repo infra-db) e o deploy da aplicação (repo app) NÃO são
-# gerenciados por este script — cada um tem seu próprio apply/pipeline.
+# Os RDS proprios (os-service e billing-service) e os ECRs dos servicos NÃO
+# são gerenciados por este script — cada um tem seu próprio apply/pipeline.
 #
 # Uso:
 #   ./apply.sh                    — bootstrap + addons, com confirmação interativa
 #   ./apply.sh --auto             — sem confirmação
-#   ./apply.sh --bootstrap-only   — só o bootstrap (VPC+EKS+ECR)
+#   ./apply.sh --bootstrap-only   — só o bootstrap (VPC+EKS)
 #   ./apply.sh --addons-only      — só os addons (requer bootstrap já aplicado)
 #   ./apply.sh --destroy          — destroi tudo com confirmação
 #   ./apply.sh --destroy --auto   — destroi tudo sem confirmação
@@ -73,7 +73,7 @@ ADDONS_DIR="$SCRIPT_DIR/addons"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 
 if $BOOTSTRAP_ONLY; then
-  MODE_LABEL="Bootstrap (VPC + EKS + ECR)"
+  MODE_LABEL="Bootstrap (VPC + EKS)"
 elif $ADDONS_ONLY; then
   MODE_LABEL="Addons (ALB interno + API Gateway + Autoscaler)"
 else
@@ -113,9 +113,9 @@ export TF_VAR_aws_access_key_id="${AWS_ACCESS_KEY_ID:-$(aws configure get aws_ac
 export TF_VAR_aws_secret_access_key="${AWS_SECRET_ACCESS_KEY:-$(aws configure get aws_secret_access_key 2>/dev/null || echo '')}"
 export TF_VAR_aws_session_token="${AWS_SESSION_TOKEN:-$(aws configure get aws_session_token 2>/dev/null || echo '')}"
 export TF_VAR_state_bucket="$BUCKET"
-# app_enabled=false conclui o cutover: paths nao roteados pelo ALB viram 404
-# em vez de cair no app. Default true preserva o comportamento anterior.
-export TF_VAR_app_enabled="${APP_ENABLED:-${TF_VAR_app_enabled:-true}}"
+# O monolito foi removido: paths nao roteados pelo ALB viram 404. A var
+# APP_ENABLED=true existe apenas como escape hatch para um rollback manual.
+export TF_VAR_app_enabled="${APP_ENABLED:-${TF_VAR_app_enabled:-false}}"
 
 run_addons() {
   local step_label="$1"
@@ -137,7 +137,7 @@ run_addons() {
 run_bootstrap() {
   local step_label="$1"
   echo ""
-  echo "${C_BLUE}==> ${step_label}${C_RESET} ${C_DIM}— VPC + EKS + ECR${C_RESET}"
+  echo "${C_BLUE}==> ${step_label}${C_RESET} ${C_DIM}— VPC + EKS${C_RESET}"
   tf_init "$BOOTSTRAP_DIR"
   if $DESTROY; then
     terraform -chdir="$BOOTSTRAP_DIR" destroy $AUTO

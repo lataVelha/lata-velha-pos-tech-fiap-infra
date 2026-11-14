@@ -14,7 +14,7 @@ on:
         type: string
         required: false
       destroy:
-        description: "Destruir o bootstrap (VPC+EKS+ECR) em vez de aplicar"
+        description: "Destruir o bootstrap (VPC+EKS) em vez de aplicar"
         type: boolean
         required: false
         default: false
@@ -32,10 +32,10 @@ env:
 jobs:
   # ============================================================
   # CD · BOOTSTRAP
-  # VPC + EKS + ECR.
+  # VPC + EKS.
   # ============================================================
   apply:
-    name: "CD · Bootstrap · VPC + EKS + ECR"
+    name: "CD · Bootstrap · VPC + EKS"
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 

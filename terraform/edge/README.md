@@ -12,7 +12,7 @@ Gateway próprio para o webhook do Mercado Pago.
 
 ## Dependências
 
-1. `infra/terraform/bootstrap` (VPC + EKS + ECR)
+1. `infra/terraform/bootstrap` (VPC + EKS)
 2. `infra/terraform/addons` (API Gateway + ALB + target groups + listener rules)
 3. `lambda` (authorizer JWT)
 

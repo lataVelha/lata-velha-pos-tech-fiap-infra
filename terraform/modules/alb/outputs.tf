@@ -9,7 +9,7 @@ output "arn" {
 }
 
 output "listener_arn" {
-  description = "ARN do listener HTTP:80 — usado pelo repo app na integração"
+  description = "ARN do listener HTTP:80 — usado pelo stack edge na integração"
   value       = aws_lb_listener.http.arn
 }
 

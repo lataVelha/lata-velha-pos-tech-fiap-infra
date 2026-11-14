@@ -41,9 +41,9 @@ variable "health_check_path" {
 }
 
 variable "app_enabled" {
-  description = "Mantem o app como default action do ALB. false = catch-all 404 (cutover concluido)"
+  description = "Mantem o target group legado do monolito como default action do ALB. false = catch-all 404 (estado atual, app removido)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "services" {

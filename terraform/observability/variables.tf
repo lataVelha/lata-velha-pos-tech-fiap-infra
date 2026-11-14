@@ -32,7 +32,6 @@ variable "services" {
   description = "Nomes de serviço no APM"
   type        = map(string)
   default = {
-    app       = "lata-velha-api"
     os        = "lata-velha-os-service"
     inventory = "lata-velha-inventory-service"
     billing   = "lata-velha-billing-service"
@@ -53,7 +52,6 @@ variable "p95_baseline_ms" {
   description = "Baseline de latência p95 HTTP por serviço (ms)"
   type        = map(number)
   default = {
-    lata-velha-api               = 800
     lata-velha-os-service        = 800
     lata-velha-inventory-service = 500
     lata-velha-billing-service   = 1000

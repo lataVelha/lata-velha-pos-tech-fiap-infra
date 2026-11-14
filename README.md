@@ -1,6 +1,6 @@
 # lata-velha-pos-tech-fiap-infra
 
-Infraestrutura **base** do projeto **Lata Velha** na AWS (VPC, EKS, ECR, ALB, API Gateway,
+Infraestrutura **base** do projeto **Lata Velha** na AWS (VPC, EKS, ALB, API Gateway,
 Cluster Autoscaler) usando **Terraform >= 1.10** (lock de estado nativo do S3). Compatível com
 **AWS Academy (Learner Lab)** — usa a `LabRole` pré-existente.
 
@@ -37,7 +37,7 @@ O stack `edge` roda depois do `lambda` (de onde lê o `jwt_authorizer_id`) e do
 ```
 terraform/
 ├── apply.sh                  # Orquestrador local (bootstrap + addons)
-├── bootstrap/                # Etapa 1: VPC + EKS + ECR
+├── bootstrap/                # Etapa 1: VPC + EKS
 │   └── backend.tf            # Estado em S3: lata-velha/bootstrap/terraform.tfstate
 ├── addons/                   # Etapa 2: ALB interno + "casco" do API Gateway + Cluster Autoscaler
 │   └── backend.tf            # Estado em S3: lata-velha/infra-addons/terraform.tfstate
@@ -93,9 +93,10 @@ O apply de cada etapa vive em workflows reusáveis próprios (`bootstrap.yml`/`a
 **Secrets/vars**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (AWS
 Academy), `AWS_REGION` (var, opcional — default `us-east-1`).
 
-**Cutover do app**: a var `APP_ENABLED` (default `true`) controla o default action do ALB.
-Com `APP_ENABLED=false`, os paths não roteados pelo ALB viram `404` e o app deixa de ser
-alcançável. O mono e este repo passam a var para o workflow `addons.yml`.
+**Cutover do app (concluído)**: o monolito foi removido, então a var `APP_ENABLED` agora
+tem default `false`: os paths não roteados pelo ALB viram `404` (catch-all) em vez de cair
+num target group sem pods. O mono e este repo passam a var para o workflow `addons.yml`;
+`APP_ENABLED=true` fica apenas como escape hatch para um rollback manual do monolito.
 
 > Na primeira vez, o `bootstrap` ainda não existe — PRs abertas antes do primeiro apply vão
 > falhar no `plan` do `addons`. Rode o primeiro apply antes de abrir PRs que dependam dele.
@@ -110,7 +111,7 @@ Pré-requisito: `aws configure` (ou `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/
 cd terraform
 ./apply.sh                    # bootstrap + addons, com confirmação interativa
 ./apply.sh --auto             # sem confirmação
-./apply.sh --bootstrap-only   # só VPC + EKS + ECR
+./apply.sh --bootstrap-only   # só VPC + EKS
 ./apply.sh --addons-only      # só ALB interno + API Gateway + autoscaler
 ./apply.sh --destroy          # destroi addons e depois bootstrap
 
