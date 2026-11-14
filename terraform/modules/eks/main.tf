@@ -62,6 +62,21 @@ resource "aws_eks_access_policy_association" "admin" {
   depends_on = [aws_eks_access_entry.admin]
 }
 
+# O nodeadm usa InstanceIdNodeName (ver locals.node_user_data), então o nome do
+# Node no Kubernetes é o ID da instância (i-...), não o private DNS name.
+# O access entry que o EKS cria sozinho para managed node groups é do tipo
+# EC2_LINUX, cujo username é fixo em system:node:{{EC2PrivateDNSName}} — com
+# InstanceIdNodeName isso não bate com o nome do Node e o kubelet não consegue
+# se registrar ("node 'ip-...' cannot read 'i-...', only its own Node object").
+# O tipo EC2 mapeia para system:node:{{SessionName}}, que no instance profile é
+# o ID da instância. Criamos a entrada ANTES do node group para que o EKS a
+# reaproveite em vez de criar a EC2_LINUX.
+resource "aws_eks_access_entry" "nodes" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.iam_role_arn
+  type          = "EC2"
+}
+
 
 resource "aws_launch_template" "nodes" {
   name_prefix = "${var.cluster_name}-nodes-"
@@ -109,4 +124,7 @@ resource "aws_eks_node_group" "default" {
     "k8s.io/cluster-autoscaler/enabled"             = "true"
     "k8s.io/cluster-autoscaler/${var.cluster_name}" = "owned"
   }
+
+  # Garante o access entry EC2 (InstanceIdNodeName) antes de os nodes subirem.
+  depends_on = [aws_eks_access_entry.nodes]
 }
