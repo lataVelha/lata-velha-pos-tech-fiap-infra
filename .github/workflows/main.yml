@@ -84,6 +84,39 @@ jobs:
           TF_VAR_app_enabled: ${{ vars.APP_ENABLED == 'true' }}
 
   # ============================================================
+  # CI · OBSERVABILITY (Datadog)
+  # Valida o stack sem precisar de credenciais Datadog/AWS: fmt + validate
+  # e o guard contra o serviço fantasma. O apply real é feito pelo workflow
+  # reutilizável observability.yml (mono ou dispatch manual).
+  # ============================================================
+  validate-observability:
+    name: "CI · Observability (Datadog)"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: Guard — serviço fantasma
+        run: |
+          if grep -R "lata-velha-api" terraform/observability; then
+            echo "::error::serviço fantasma lata-velha-api em terraform/observability"
+            exit 1
+          fi
+
+      - name: Terraform fmt/validate — observability
+        run: |
+          terraform -chdir=terraform/observability init -backend=false
+          terraform -chdir=terraform/observability fmt -check -recursive
+          terraform -chdir=terraform/observability validate
+
+  # ============================================================
   # CD · BOOTSTRAP e CD · ADDONS
   # Delegam pros workflows reusaveis (bootstrap.yml, addons.yml) deste
   # mesmo repo — a mesma definicao que o mono repo tambem chama de fora.

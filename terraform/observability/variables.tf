@@ -48,6 +48,54 @@ variable "queues" {
   }
 }
 
+variable "aws_integration_enabled" {
+  description = "Cria monitores/widgets de SQS. Requer a integração AWS no Datadog; no AWS Academy fica false e o fallback são os alarmes CloudWatch do messaging."
+  type        = bool
+  default     = false
+}
+
+variable "kube_cluster_name" {
+  description = "Tag kube_cluster_name das métricas do Agent (usada no monitor de restarts)"
+  type        = string
+  default     = "lata-velha-prod"
+}
+
+variable "service_namespaces" {
+  description = "Namespace Kubernetes por serviço (tag kube_namespace do Agent)"
+  type        = map(string)
+  default = {
+    os        = "lata-velha-os"
+    inventory = "lata-velha-inventory"
+    billing   = "lata-velha-billing"
+  }
+}
+
+variable "service_deployments" {
+  description = "Deployment Kubernetes por serviço (tag kube_deployment do Agent)"
+  type        = map(string)
+  default = {
+    os        = "lata-velha-os"
+    inventory = "lata-velha-inventory"
+    billing   = "lata-velha-billing"
+  }
+}
+
+variable "trace_metric_prefixes" {
+  description = <<-EOT
+    Prefixo da trace metric do span HTTP server por serviço.
+    hits  = <prefixo>.hits
+    errors = <prefixo>.errors
+    p95   = p95:<prefixo> (a métrica-base é a distribuição de duração, em segundos;
+            NÃO existe <prefixo>.duration neste setup OTel).
+  EOT
+  type        = map(string)
+  default = {
+    os        = "trace.org.springframework.boot.server"
+    inventory = "trace.org.springframework.boot.server"
+    billing   = "trace.io.opentelemetry.spring_webmvc_6.0.server"
+  }
+}
+
 variable "p95_baseline_ms" {
   description = "Baseline de latência p95 HTTP por serviço (ms)"
   type        = map(number)

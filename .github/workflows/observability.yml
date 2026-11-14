@@ -1,0 +1,132 @@
+name: Observability (Datadog)
+
+# Reusável (workflow_call): aplica dashboards + monitores Datadog.
+# Chamado pelo mono depois do addons (Agent/cluster existentes) e em
+# workflow_dispatch para operação manual.
+#
+# O state é próprio (lata-velha/observability/terraform.tfstate) e não
+# contém recursos AWS. As chaves Datadog vêm de secrets; nunca são logadas.
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        description: "Região AWS do bucket de state"
+        type: string
+        required: false
+      destroy:
+        description: "Destruir dashboards/monitores em vez de aplicar"
+        type: boolean
+        required: false
+        default: false
+      aws_integration_enabled:
+        description: "Criar monitores/widgets de SQS (requer integração AWS no Datadog)"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+      TF_VAR_dd_api_key:
+        required: true
+      TF_VAR_dd_app_key:
+        required: true
+      TF_VAR_alert_recipients:
+        required: false
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: "Região AWS do bucket de state"
+        type: string
+        required: false
+      destroy:
+        description: "Destruir dashboards/monitores em vez de aplicar"
+        type: boolean
+        default: false
+      aws_integration_enabled:
+        description: "Criar monitores/widgets de SQS (requer integração AWS no Datadog)"
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  apply:
+    name: "CD · Observability · Datadog"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    concurrency:
+      group: infra-observability
+      cancel-in-progress: false
+
+    env:
+      REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-east-1' }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+        with:
+          repository: lataVelha/lata-velha-pos-tech-fiap-infra
+          ref: master
+
+      - name: Autenticar na AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: Resolver bucket de estado (S3)
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "STATE_BUCKET=lata-velha-tfstate-${ACCOUNT_ID}" >> "$GITHUB_ENV"
+
+      - name: Exportar variáveis opcionais
+        env:
+          ALERT_RECIPIENTS: ${{ secrets.TF_VAR_alert_recipients || secrets.TF_VAR_ALERT_RECIPIENTS }}
+        run: |
+          if [[ -n "${ALERT_RECIPIENTS}" ]]; then
+            echo "TF_VAR_alert_recipients=${ALERT_RECIPIENTS}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Terraform Init — observability
+        run: |
+          terraform -chdir=terraform/observability init -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="region=${REGION}"
+
+      - name: Terraform fmt/validate
+        run: |
+          terraform -chdir=terraform/observability fmt -check -recursive
+          terraform -chdir=terraform/observability validate
+
+      - name: Terraform Apply/Destroy — observability
+        run: |
+          if [[ "${{ inputs.destroy }}" == "true" ]]; then
+            terraform -chdir=terraform/observability destroy -auto-approve
+          else
+            terraform -chdir=terraform/observability apply -auto-approve
+          fi
+        env:
+          TF_VAR_dd_api_key: ${{ secrets.TF_VAR_dd_api_key || secrets.TF_VAR_DD_API_KEY }}
+          TF_VAR_dd_app_key: ${{ secrets.TF_VAR_dd_app_key || secrets.TF_VAR_DD_APP_KEY }}
+          TF_VAR_aws_integration_enabled: ${{ inputs.aws_integration_enabled }}
+
+      - name: Publicar recursos aplicados
+        if: inputs.destroy != true
+        run: |
+          echo "Dashboard: $(terraform -chdir=terraform/observability output -raw dashboard_url)"
+          echo "Monitores:"
+          terraform -chdir=terraform/observability output -json monitor_ids
