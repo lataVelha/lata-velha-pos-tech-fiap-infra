@@ -17,7 +17,7 @@ output "vpc_link_id" {
 }
 
 output "alb_listener_arn" {
-  description = "Usado pelo repo app pra montar a integração HTTP_PROXY"
+  description = "Usado pelo stack edge pra montar a integração HTTP_PROXY"
   value       = module.alb.listener_arn
 }
 

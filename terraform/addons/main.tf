@@ -11,10 +11,10 @@ data "terraform_remote_state" "bootstrap" {
 locals {
   bootstrap = data.terraform_remote_state.bootstrap.outputs
 
-  # Target groups path-based dos servicos que sairam do app. O API Gateway
-  # compartilhado continua encaminhando tudo para o listener do ALB; o ALB
-  # decide o destino pelo path. O app fica como default action ate o
-  # cutover (app_enabled = false).
+  # Target groups path-based dos servicos. O API Gateway compartilhado
+  # encaminha tudo para o listener do ALB; o ALB decide o destino pelo path.
+  # O monolito foi removido: app_enabled=false faz paths nao roteados virarem
+  # 404 (catch-all) em vez de cair num target group sem pods.
   edge_target_groups = {
     os        = { node_port = 30082, health = "/actuator/health/readiness" }
     inventory = { node_port = 30083, health = "/actuator/health/readiness" }

@@ -1,6 +1,6 @@
 # Dashboard operacional versionado (Story 18.2).
 #
-# Visão única: APM dos quatro serviços, taxa de erro, p95, tráfego, JVM,
+# Visão única: APM dos três microsserviços, taxa de erro, p95, tráfego, JVM,
 # DLQ e profundidade das filas. Filtro global por env.
 
 locals {

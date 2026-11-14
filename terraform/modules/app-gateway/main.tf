@@ -1,8 +1,8 @@
 # Recurso compartilhado do API Gateway: so o "casco" fica aqui (API + VPC
 # Link + Stage + log group). Quem usa anexa as proprias rotas/integracoes
 # via terraform_remote_state — repo lambda anexa POST /auth/cpf + a
-# authorizer, repo app anexa a integracao com o ALB + as rotas publicas e
-# protegidas. Assim este modulo nao depende de nenhum dos dois pra ser
+# authorizer; o stack edge anexa a integracao com o ALB + as rotas publicas
+# e protegidas. Assim este modulo nao depende de nenhum dos dois pra ser
 # aplicado, e roda logo em seguida do bootstrap, sem esperar mais nada.
 
 resource "aws_apigatewayv2_api" "this" {

@@ -71,7 +71,7 @@ variable "dd_api_key" {
 }
 
 variable "app_enabled" {
-  description = "Mantem o app como default action do ALB. false = paths nao roteados viram 404 (cutover)"
+  description = "Mantem o alvo legado do monolito como default action do ALB. false = paths nao roteados viram 404 (estado atual, app removido)"
   type        = bool
-  default     = true
+  default     = false
 }
