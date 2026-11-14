@@ -20,9 +20,12 @@ dashboards/monitores), roda `terraform fmt -check`/`validate` e imprime
 ## Pipeline
 
 Workflow reutilizável: `infra/.github/workflows/observability.yml`
-(`workflow_call` + `workflow_dispatch`). O mono chama em
-`deploy-observability` após o addons; o destroy roda antes do destroy dos
-addons. Secrets: `TF_VAR_dd_api_key`, `TF_VAR_dd_app_key` (e opcional
+(`workflow_call` + `workflow_dispatch`), com `concurrency: infra-observability`.
+O mono executa os mesmos passos inline em `deploy-observability` (após o
+addons) e `destroy-observability` (antes do destroy dos addons) para não
+depender do workflow em `infra@master` antes do merge; o workflow reutilizável
+fica disponível para dispatch manual e outros callers. Secrets:
+`TF_VAR_dd_api_key`, `TF_VAR_dd_app_key` (e opcional
 `TF_VAR_alert_recipients`).
 
 ## Métricas
