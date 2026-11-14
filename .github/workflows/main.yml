@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Autenticar na AWS
         uses: aws-actions/configure-aws-credentials@v4
@@ -69,7 +71,19 @@ jobs:
       - name: Terraform Plan — addons
         # Le os outputs reais do ultimo apply do bootstrap (state em S3) para
         # configurar os providers kubectl/helm — sem aplicar nada aqui.
+        #
+        # Só roda se o PR mudou addons/modules. O provider Kubernetes pode
+        # ficar minutos tentando falar com o EKS em PRs que não tocam nesses
+        # stacks; a validação de sintaxe continua na matriz do mono e o apply
+        # real (push master) continua com refresh normal.
         run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          CHANGED=$(git diff --name-only "${BASE}"...HEAD)
+          if ! grep -qE '^terraform/(addons|modules)/' <<< "${CHANGED}"; then
+            echo "Sem mudanças em terraform/addons ou terraform/modules; plan de addons ignorado."
+            exit 0
+          fi
+
           echo "TF_VAR_cluster_endpoint=$(terraform -chdir=terraform/bootstrap output -raw cluster_endpoint)" >> $GITHUB_ENV
           echo "TF_VAR_cluster_ca_data=$(terraform -chdir=terraform/bootstrap output -raw cluster_certificate_authority_data)" >> $GITHUB_ENV
           echo "TF_VAR_cluster_name=$(terraform -chdir=terraform/bootstrap output -raw cluster_name)" >> $GITHUB_ENV
