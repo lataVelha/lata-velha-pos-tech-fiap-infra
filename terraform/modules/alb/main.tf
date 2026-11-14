@@ -95,10 +95,7 @@ resource "aws_autoscaling_attachment" "this" {
 resource "aws_lb_target_group" "svc" {
   for_each = var.services
 
-  # target_group_name permite evitar colisão com target groups de NLB
-  # criados pelos próprios serviços (ex.: billing usa lata-velha-billing-tg
-  # no NLB do webhook; o ALB usa lata-velha-billing-alb-tg).
-  name                 = coalesce(each.value.target_group_name, "${var.name}-${each.key}-tg")
+  name                 = "${var.name}-${each.key}-tg"
   port                 = each.value.node_port
   protocol             = "HTTP"
   vpc_id               = var.vpc_id

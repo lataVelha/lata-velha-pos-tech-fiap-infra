@@ -49,9 +49,8 @@ variable "app_enabled" {
 variable "services" {
   description = "Target groups por servico migrado do app (NodePort + health check)"
   type = map(object({
-    node_port         = number
-    health            = optional(string, "/actuator/health/readiness")
-    target_group_name = optional(string)
+    node_port = number
+    health    = optional(string, "/actuator/health/readiness")
   }))
   default = {}
 }

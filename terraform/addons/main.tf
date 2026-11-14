@@ -18,14 +18,7 @@ locals {
   edge_target_groups = {
     os        = { node_port = 30082, health = "/actuator/health/readiness" }
     inventory = { node_port = 30083, health = "/actuator/health/readiness" }
-    # O billing já tem um target group TCP no NLB do webhook Mercado Pago
-    # (lata-velha-billing-tg). O ALB precisa de um nome próprio para não
-    # colidir com ele.
-    billing = {
-      node_port         = 30081
-      health            = "/actuator/health/readiness"
-      target_group_name = "lata-velha-billing-alb-tg"
-    }
+    billing   = { node_port = 30081, health = "/actuator/health/readiness" }
   }
 
   # A AWS permite no maximo 5 valores de condicao e 6 wildcards por regra.
