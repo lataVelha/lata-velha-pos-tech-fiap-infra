@@ -18,6 +18,7 @@ locals {
   edge_target_groups = {
     os        = { node_port = 30082, health = "/actuator/health/readiness" }
     inventory = { node_port = 30083, health = "/actuator/health/readiness" }
+    billing   = { node_port = 30081, health = "/actuator/health/readiness" }
   }
 
   # A AWS permite no maximo 5 valores de condicao e 6 wildcards por regra.
@@ -61,6 +62,16 @@ locals {
       service  = "inventory"
       priority = 30
       paths    = ["/pecas", "/pecas/*"]
+    }
+    billing = {
+      service  = "billing"
+      priority = 40
+      paths    = ["/orcamentos", "/orcamentos/*", "/pagamentos", "/pagamentos/*"]
+    }
+    swagger = {
+      service  = "os"
+      priority = 50
+      paths    = ["/swagger-ui.html", "/swagger-ui/*", "/v3/api-docs", "/v3/api-docs/*"]
     }
   }
 }
