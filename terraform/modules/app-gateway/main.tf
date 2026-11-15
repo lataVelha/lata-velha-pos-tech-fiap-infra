@@ -41,15 +41,18 @@ resource "aws_apigatewayv2_stage" "default" {
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.this.arn
+    # Sem IP/PII (Story 20.2 / NFR-OT-04). O forwarder também remove campos
+    # desconhecidos antes de enviar ao Datadog.
     format = jsonencode({
-      requestId        = "$context.requestId"
-      ip               = "$context.identity.sourceIp"
-      requestTime      = "$context.requestTime"
-      httpMethod       = "$context.httpMethod"
-      routeKey         = "$context.routeKey"
-      status           = "$context.status"
-      responseLength   = "$context.responseLength"
-      integrationError = "$context.integrationErrorMessage"
+      requestId          = "$context.requestId"
+      requestTime        = "$context.requestTime"
+      httpMethod         = "$context.httpMethod"
+      routeKey           = "$context.routeKey"
+      status             = "$context.status"
+      responseLatency    = "$context.responseLatency"
+      integrationLatency = "$context.integrationLatency"
+      responseLength     = "$context.responseLength"
+      integrationError   = "$context.integrationErrorMessage"
     })
   }
 }

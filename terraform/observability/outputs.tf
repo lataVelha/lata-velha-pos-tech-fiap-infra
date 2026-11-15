@@ -31,3 +31,35 @@ output "monitor_names" {
     { for key, monitor in datadog_monitor.queue_age : "queue_age_${key}" => monitor.name },
   )
 }
+
+output "slo_ids" {
+  description = "IDs dos SLOs de disponibilidade/latência"
+  value = merge(
+    { for key, slo in datadog_service_level_objective.availability : "availability_${key}" => slo.id },
+    { for key, slo in datadog_service_level_objective.latency : "latency_${key}" => slo.id },
+  )
+}
+
+output "synthetic_test_ids" {
+  description = "IDs dos synthetic tests públicos"
+  value = {
+    health       = length(datadog_synthetics_test.health) > 0 ? datadog_synthetics_test.health[0].id : null
+    auth_openapi = length(datadog_synthetics_test.auth_openapi) > 0 ? datadog_synthetics_test.auth_openapi[0].id : null
+  }
+}
+
+output "edge_monitor_ids" {
+  description = "IDs dos monitores de borda (5xx e latência do API Gateway)"
+  value = {
+    edge_5xx     = datadog_monitor.edge_5xx.id
+    edge_latency = datadog_monitor.edge_latency.id
+  }
+}
+
+output "cloudwatch_events_forwarding" {
+  description = "Status do fallback CloudWatch -> Datadog Events"
+  value = local.cloudwatch_forwarding_enabled ? {
+    api_destination = aws_cloudwatch_event_api_destination.datadog[0].arn
+    rule            = aws_cloudwatch_event_rule.cloudwatch_alarm[0].name
+  } : null
+}

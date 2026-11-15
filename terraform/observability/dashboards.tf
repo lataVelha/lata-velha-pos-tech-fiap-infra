@@ -10,6 +10,15 @@
 # A latência é p95:<prefixo> (a métrica-base é a distribuição de duração,
 # em segundos). Não existe <prefixo>.duration.
 
+locals {
+  # Story 20.1: as funções serverless têm DD_SERVICE próprio e trace metric
+  # root `trace.aws.lambda`, enviada pela Datadog Lambda Extension.
+  lambda_services = {
+    auth_cpf       = "lata-velha-auth-cpf"
+    jwt_authorizer = "lata-velha-jwt-authorizer"
+  }
+}
+
 resource "datadog_dashboard" "microsservicos" {
   title       = "Lata Velha — Microsserviços"
   description = "APM, erros, latência, JVM, restarts e barramento SQS. Runbook: ${var.runbook_url}"
@@ -27,6 +36,7 @@ resource "datadog_dashboard" "microsservicos" {
         ## Lata Velha — observabilidade dos microsserviços
         - **os/inventory:** `trace.org.springframework.boot.server.{hits,errors}` e `p95:trace.org.springframework.boot.server` (segundos).
         - **billing:** `trace.io.opentelemetry.spring_webmvc_6.0.server.{hits,errors}` e `p95:trace.io.opentelemetry.spring_webmvc_6.0.server` (segundos).
+        - **Lambdas:** `lata-velha-auth-cpf` e `lata-velha-jwt-authorizer` usam `trace.aws.lambda.{hits,errors}` e `p95:trace.aws.lambda` (Datadog Lambda Extension).
         - **Restarts:** tags `kube_cluster_name`/`kube_namespace`/`kube_deployment` (o Agent não propaga `service`/`env` nessa métrica).
         - **SQS:** só com a integração AWS habilitada; no AWS Academy use os alarmes CloudWatch do messaging.
         - Runbook: ${var.runbook_url}
@@ -138,6 +148,59 @@ resource "datadog_dashboard" "microsservicos" {
         for_each = local.trace
         content {
           q            = "avg:jvm.cpu.recent_utilization{service:${request.value.service},env:$env} by {service}"
+          display_type = "line"
+        }
+      }
+    }
+  }
+
+  # ----------------------------------------------------------------------
+  # Lambda (Story 20.1): traces/logs da auth-cpf e da jwt-authorizer
+  # ----------------------------------------------------------------------
+  widget {
+    note_definition {
+      content = <<-EOT
+        ## Lambdas de autenticação
+        `lata-velha-auth-cpf` (login por CPF) e `lata-velha-jwt-authorizer`
+        (authorizer do API Gateway) enviam traces via Datadog Lambda Extension.
+        Queries: `trace.aws.lambda.{hits,errors}` e `p95:trace.aws.lambda`.
+      EOT
+    }
+  }
+
+  widget {
+    timeseries_definition {
+      title = "Lambda — invocações/s"
+      dynamic "request" {
+        for_each = local.lambda_services
+        content {
+          q            = "sum:trace.aws.lambda.hits{service:${request.value},env:$env}.as_rate()"
+          display_type = "line"
+        }
+      }
+    }
+  }
+
+  widget {
+    timeseries_definition {
+      title = "Lambda — erros/s"
+      dynamic "request" {
+        for_each = local.lambda_services
+        content {
+          q            = "sum:trace.aws.lambda.errors{service:${request.value},env:$env}.as_rate()"
+          display_type = "bars"
+        }
+      }
+    }
+  }
+
+  widget {
+    timeseries_definition {
+      title = "Lambda — p95 (segundos)"
+      dynamic "request" {
+        for_each = local.lambda_services
+        content {
+          q            = "p95:trace.aws.lambda{service:${request.value},env:$env}"
           display_type = "line"
         }
       }

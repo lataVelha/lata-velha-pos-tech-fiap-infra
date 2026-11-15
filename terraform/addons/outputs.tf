@@ -25,3 +25,13 @@ output "alb_dns_name" {
   description = "DNS do ALB — interno, não é a URL pública"
   value       = module.alb.dns_name
 }
+
+output "app_api_log_group_name" {
+  description = "Log group dos access logs do API Gateway — o forwarder da Story 20.2 assina esse log group"
+  value       = module.app_gateway.log_group_name
+}
+
+output "app_api_log_group_arn" {
+  description = "ARN do log group dos access logs do API Gateway"
+  value       = module.app_gateway.log_group_arn
+}

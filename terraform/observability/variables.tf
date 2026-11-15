@@ -117,3 +117,27 @@ variable "runbook_url" {
   type        = string
   default     = "https://github.com/lataVelha/lata-velha-pos-tech-fiap-mono/blob/master/docs/observability-runbook.md"
 }
+
+variable "app_api_url" {
+  description = "URL pública do API Gateway (output app_api_endpoint do addons) — usada nos synthetic tests"
+  type        = string
+  default     = ""
+}
+
+variable "aws_region" {
+  description = "Região AWS do fallback CloudWatch -> Datadog Events"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "cloudwatch_events_forwarding_enabled" {
+  description = "Quando a integração AWS está off, encaminha CloudWatch Alarm State Change para o Datadog Events via EventBridge API destination"
+  type        = bool
+  default     = true
+}
+
+variable "aws_account_id" {
+  description = "Account ID usado para montar o ARN da LabRole do EventBridge (fallback CloudWatch). Vazio = fallback desabilitado."
+  type        = string
+  default     = ""
+}

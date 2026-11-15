@@ -160,3 +160,53 @@ resource "datadog_monitor" "pod_restarts" {
   on_missing_data     = "resolve"
   tags                = concat(local.common_tags, ["service:${each.value.service}"])
 }
+
+# --------------------------------------------------------------------------
+# Story 20.2: monitores de borda a partir dos access logs do API Gateway
+# (forwarder -> Datadog Logs). O log não tem IP/PII.
+# --------------------------------------------------------------------------
+resource "datadog_monitor" "edge_5xx" {
+  name    = "[${var.environment}] Edge (API Gateway) — 5xx acima de 5 em 5 min"
+  type    = "log alert"
+  message = <<-EOT
+    O API Gateway está devolvendo 5xx acima do normal.
+    Logs: `service:lata-velha-edge source:apigateway @http.status_code:>=500`.
+
+    Runbook: ${var.runbook_url}#borda-api-gateway
+    ${local.notification}
+  EOT
+
+  query = "logs(\"service:lata-velha-edge source:apigateway env:${var.environment} @http.status_code:>=500\").index(\"*\").rollup(\"count\").last(\"5m\") > 5"
+
+  monitor_thresholds {
+    critical = 5
+    warning  = 1
+  }
+
+  require_full_window = false
+  on_missing_data     = "resolve"
+  tags                = concat(local.common_tags, ["service:lata-velha-edge", "edge:apigateway"])
+}
+
+resource "datadog_monitor" "edge_latency" {
+  name    = "[${var.environment}] Edge (API Gateway) — latência > 1s"
+  type    = "log alert"
+  message = <<-EOT
+    Mais de 10 requisições de borda passaram de 1s em 5 minutos.
+    Logs: `service:lata-velha-edge source:apigateway @response_latency:>1000`.
+
+    Runbook: ${var.runbook_url}#borda-api-gateway
+    ${local.notification}
+  EOT
+
+  query = "logs(\"service:lata-velha-edge source:apigateway env:${var.environment} @response_latency:>1000\").index(\"*\").rollup(\"count\").last(\"5m\") > 10"
+
+  monitor_thresholds {
+    critical = 10
+    warning  = 3
+  }
+
+  require_full_window = false
+  on_missing_data     = "resolve"
+  tags                = concat(local.common_tags, ["service:lata-velha-edge", "edge:apigateway"])
+}
