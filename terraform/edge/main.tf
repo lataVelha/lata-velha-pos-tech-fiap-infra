@@ -52,6 +52,8 @@ locals {
     "ANY /inventory/swagger-ui/{proxy+}",
     "GET /inventory/v3/api-docs",
     "ANY /inventory/v3/api-docs/{proxy+}",
+    # os-service login — rota publica (sem JWT ainda para obter o token).
+    "POST /auth/login",
     # lambda auth-cpf: rotas de swagger e openapi criadas diretamente no repo
     # lambda (apontam para integracao Lambda, nao ALB). Sem rota /auth/ aqui.
     # Webhook do Mercado Pago — chamado pela plataforma sem token JWT.
