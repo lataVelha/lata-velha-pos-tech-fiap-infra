@@ -16,7 +16,7 @@ resource "datadog_service_level_objective" "availability" {
   thresholds {
     timeframe = "30d"
     target    = 99.5
-    warning   = 99.0
+    warning   = 99.9
   }
 
   tags = concat(local.common_tags, ["service:${each.value.service}", "slo:availability"])
