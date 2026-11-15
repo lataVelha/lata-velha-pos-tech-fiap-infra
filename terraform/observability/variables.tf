@@ -90,9 +90,9 @@ variable "trace_metric_prefixes" {
   EOT
   type        = map(string)
   default = {
-    os        = "trace.org.springframework.boot.server"
-    inventory = "trace.org.springframework.boot.server"
-    billing   = "trace.io.opentelemetry.spring_webmvc_6.0.server"
+    os        = "trace.http.request"
+    inventory = "trace.http.request"
+    billing   = "trace.http.request"
   }
 }
 
