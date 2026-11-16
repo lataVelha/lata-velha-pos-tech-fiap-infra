@@ -131,9 +131,9 @@ variable "aws_region" {
 }
 
 variable "cloudwatch_events_forwarding_enabled" {
-  description = "Quando a integração AWS está off, encaminha CloudWatch Alarm State Change para o Datadog Events via EventBridge API destination"
+  description = "API destination opcional para contas com IAM. No AWS Academy use o forwarder Lambda do stack lambda (EventBridge target com resource-based permission)."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "aws_account_id" {
