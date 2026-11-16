@@ -3,9 +3,9 @@
 # Visão única: APM dos três microsserviços, taxa de erro, p95, JVM, restarts
 # e DLQ/profundidade das filas. Filtro global por env.
 #
-# Story 19.3: o SpanProcessor padroniza o span HTTP server para
-# `http.request`; as trace metrics dos 3 serviços EKS são
-# `trace.http.request.{hits,errors}` e `p95:trace.http.request`.
+# Story 19.3: o span HTTP server é renomeado para `http.request`, mas o
+# Datadog deriva a trace metric do escopo da instrumentação OTel. Por isso o
+# mapa `trace_metric_prefixes` continua sendo a fonte da verdade por serviço.
 # A latência é p95:<prefixo> (a métrica-base é a distribuição de duração,
 # em segundos). Não existe <prefixo>.duration.
 
@@ -33,7 +33,8 @@ resource "datadog_dashboard" "microsservicos" {
     note_definition {
       content = <<-EOT
         ## Lata Velha — observabilidade dos microsserviços
-        - **EKS (os/inventory/billing):** `trace.http.request.{hits,errors}` e `p95:trace.http.request` (segundos) — naming padronizado na Story 19.3.
+        - **os/inventory:** `trace.org.springframework.boot.server.{hits,errors}` e `p95:trace.org.springframework.boot.server` (segundos; span name `http.request`).
+        - **billing:** `trace.io.opentelemetry.spring_webmvc_6.0.server.{hits,errors}` e `p95:trace.io.opentelemetry.spring_webmvc_6.0.server` (segundos; span name `http.request`).
         - **Lambdas:** `trace.aws.lambda.{hits,errors}` e `p95:trace.aws.lambda`.
         - **Lambdas:** `lata-velha-auth-cpf` e `lata-velha-jwt-authorizer` usam `trace.aws.lambda.{hits,errors}` e `p95:trace.aws.lambda` (Datadog Lambda Extension).
         - **Restarts:** tags `kube_cluster_name`/`kube_namespace`/`kube_deployment` (o Agent não propaga `service`/`env` nessa métrica).
