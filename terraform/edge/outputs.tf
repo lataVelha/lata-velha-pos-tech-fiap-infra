@@ -4,8 +4,13 @@ output "api_endpoint" {
 }
 
 output "integration_id" {
-  description = "ID da integracao HTTP_PROXY com o ALB"
+  description = "ID da integracao HTTP_PROXY publica com o ALB"
   value       = aws_apigatewayv2_integration.alb.id
+}
+
+output "traced_integration_id" {
+  description = "ID da integracao HTTP_PROXY das rotas protegidas (repassa traceparent)"
+  value       = aws_apigatewayv2_integration.alb_traced.id
 }
 
 output "route_keys" {
