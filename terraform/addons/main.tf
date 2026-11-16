@@ -194,6 +194,9 @@ resource "helm_release" "datadog" {
   chart      = "datadog"
   namespace  = kubernetes_namespace.datadog.metadata[0].name
   version    = "3.60.0"
+  # O upgrade do Agent reinicia o DaemonSet; 5m (default do provider) é curto
+  # demais no cluster do AWS Academy. 15m dá tempo do rollout terminar.
+  timeout = 900
 
   depends_on = [kubernetes_secret.datadog_api_key]
 
