@@ -194,6 +194,9 @@ resource "helm_release" "datadog" {
   chart      = "datadog"
   namespace  = kubernetes_namespace.datadog.metadata[0].name
   version    = "3.60.0"
+  # O upgrade do Agent reinicia o DaemonSet; 5m (default do provider) é curto
+  # demais no cluster do AWS Academy. 15m dá tempo do rollout terminar.
+  timeout = 900
 
   depends_on = [kubernetes_secret.datadog_api_key]
 
@@ -268,4 +271,68 @@ resource "helm_release" "datadog" {
     name  = "datadog.otlp.receiver.protocols.grpc.useHostPort"
     value = "true"
   }
+
+  # O chart 3.60.0 pina Agent 7.53.0. Na faixa 7.50.3–7.54.1 o Datadog não
+  # habilita inferred services por default: sem estes três ajustes, bancos,
+  # filas e APIs externas não viram nós/arestas no Service Map.
+  # A partir do Agent 7.60.0 os dois booleanos já vêm true e a lista de
+  # peer_tags não é necessária (ver docs/troubleshooting-datadog-service-map.md).
+  values = [
+    yamlencode({
+      datadog = {
+        env = [
+          { name = "DD_APM_COMPUTE_STATS_BY_SPAN_KIND", value = "true" },
+          { name = "DD_APM_PEER_TAGS_AGGREGATION", value = "true" },
+          {
+            name = "DD_APM_PEER_TAGS"
+            value = jsonencode([
+              "_dd.base_service",
+              "active_record.db.vendor",
+              "amqp.destination",
+              "amqp.exchange",
+              "amqp.queue",
+              "aws.queue.name",
+              "aws.s3.bucket",
+              "bucketname",
+              "cassandra.keyspace",
+              "db.cassandra.contact.points",
+              "db.couchbase.seed.nodes",
+              "db.hostname",
+              "db.instance",
+              "db.name",
+              "db.namespace",
+              "db.system",
+              "db.type",
+              "dns.hostname",
+              "grpc.host",
+              "hostname",
+              "http.host",
+              "http.server_name",
+              "messaging.destination",
+              "messaging.destination.name",
+              "messaging.kafka.bootstrap.servers",
+              "messaging.rabbitmq.exchange",
+              "messaging.system",
+              "mongodb.db",
+              "msmq.queue.path",
+              "net.peer.name",
+              "network.destination.ip",
+              "network.destination.name",
+              "out.host",
+              "peer.hostname",
+              "peer.service",
+              "queuename",
+              "rpc.service",
+              "rpc.system",
+              "sequel.db.vendor",
+              "server.address",
+              "streamname",
+              "tablename",
+              "topicname",
+            ])
+          },
+        ]
+      }
+    })
+  ]
 }

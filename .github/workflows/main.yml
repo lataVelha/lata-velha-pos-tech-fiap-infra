@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Autenticar na AWS
         uses: aws-actions/configure-aws-credentials@v4
@@ -69,7 +71,19 @@ jobs:
       - name: Terraform Plan — addons
         # Le os outputs reais do ultimo apply do bootstrap (state em S3) para
         # configurar os providers kubectl/helm — sem aplicar nada aqui.
+        #
+        # Só roda se o PR mudou addons/modules. O provider Kubernetes pode
+        # ficar minutos tentando falar com o EKS em PRs que não tocam nesses
+        # stacks; a validação de sintaxe continua na matriz do mono e o apply
+        # real (push master) continua com refresh normal.
         run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          CHANGED=$(git diff --name-only "${BASE}"...HEAD)
+          if ! grep -qE '^terraform/(addons|modules)/' <<< "${CHANGED}"; then
+            echo "Sem mudanças em terraform/addons ou terraform/modules; plan de addons ignorado."
+            exit 0
+          fi
+
           echo "TF_VAR_cluster_endpoint=$(terraform -chdir=terraform/bootstrap output -raw cluster_endpoint)" >> $GITHUB_ENV
           echo "TF_VAR_cluster_ca_data=$(terraform -chdir=terraform/bootstrap output -raw cluster_certificate_authority_data)" >> $GITHUB_ENV
           echo "TF_VAR_cluster_name=$(terraform -chdir=terraform/bootstrap output -raw cluster_name)" >> $GITHUB_ENV
@@ -77,11 +91,48 @@ jobs:
           terraform -chdir=terraform/addons init -reconfigure \
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}"
-          terraform -chdir=terraform/addons plan
+          # -refresh=false: o plan de PR não deve depender da API do EKS.
+          # O refresh de helm_release/kubectl_manifest pode travar o runner
+          # quando o cluster está lento; o apply real (push master) continua
+          # com refresh normal.
+          terraform -chdir=terraform/addons plan -refresh=false
         env:
           TF_VAR_region: ${{ vars.AWS_REGION || 'us-east-1' }}
           TF_VAR_state_bucket: ${{ env.STATE_BUCKET }}
           TF_VAR_app_enabled: ${{ vars.APP_ENABLED == 'true' }}
+
+  # ============================================================
+  # CI · OBSERVABILITY (Datadog)
+  # Valida o stack sem precisar de credenciais Datadog/AWS: fmt + validate
+  # e o guard contra o serviço fantasma. O apply real é feito pelo workflow
+  # reutilizável observability.yml (mono ou dispatch manual).
+  # ============================================================
+  validate-observability:
+    name: "CI · Observability (Datadog)"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar Terraform 1.10
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.x"
+
+      - name: Guard — serviço fantasma
+        run: |
+          if grep -R "lata-velha-api" terraform/observability; then
+            echo "::error::serviço fantasma lata-velha-api em terraform/observability"
+            exit 1
+          fi
+
+      - name: Terraform fmt/validate — observability
+        run: |
+          terraform -chdir=terraform/observability init -backend=false
+          terraform -chdir=terraform/observability fmt -check -recursive
+          terraform -chdir=terraform/observability validate
 
   # ============================================================
   # CD · BOOTSTRAP e CD · ADDONS

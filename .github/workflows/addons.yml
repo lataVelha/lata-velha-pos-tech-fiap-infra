@@ -34,6 +34,11 @@ on:
         type: boolean
         required: false
         default: false
+      ref:
+        description: "Branch/tag do repo infra para o checkout (default: master)"
+        type: string
+        required: false
+        default: master
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -70,7 +75,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: lataVelha/lata-velha-pos-tech-fiap-infra
-          ref: master
+          ref: ${{ inputs.ref || 'master' }}
 
       - name: Autenticar na AWS
         uses: aws-actions/configure-aws-credentials@v4

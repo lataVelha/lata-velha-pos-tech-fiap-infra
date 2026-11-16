@@ -15,3 +15,13 @@ output "api_endpoint" {
 output "vpc_link_id" {
   value = aws_apigatewayv2_vpc_link.this.id
 }
+
+output "log_group_name" {
+  description = "Log group dos access logs do API Gateway — consumido pelo forwarder (Story 20.2)"
+  value       = aws_cloudwatch_log_group.this.name
+}
+
+output "log_group_arn" {
+  description = "ARN do log group dos access logs do API Gateway"
+  value       = aws_cloudwatch_log_group.this.arn
+}

@@ -74,6 +74,26 @@ resource "aws_apigatewayv2_integration" "alb" {
   payload_format_version = "1.0"
 }
 
+# Integração das rotas PROTEGIDAS: repassa o traceparent devolvido pelo
+# authorizer JWT no context. O API Gateway não injeta W3C sozinho; sem isso
+# o ALB/EKS recebe a requisição sem traceparent e o Spring Boot OTel abre um
+# novo trace raiz (flow map partido entre edge e micros).
+# Fica separada da integração pública porque `$context.authorizer.*` não
+# existe nas rotas sem authorizer.
+resource "aws_apigatewayv2_integration" "alb_traced" {
+  api_id                 = local.addons.app_api_id
+  integration_type       = "HTTP_PROXY"
+  integration_uri        = local.addons.alb_listener_arn
+  integration_method     = "ANY"
+  connection_type        = "VPC_LINK"
+  connection_id          = local.addons.vpc_link_id
+  payload_format_version = "1.0"
+
+  request_parameters = {
+    "overwrite:header.traceparent" = "$context.authorizer.traceparent"
+  }
+}
+
 resource "aws_apigatewayv2_route" "public" {
   for_each = toset(local.public_routes)
 
@@ -86,7 +106,7 @@ resource "aws_apigatewayv2_route" "public" {
 resource "aws_apigatewayv2_route" "protected_root" {
   api_id             = local.addons.app_api_id
   route_key          = "ANY /"
-  target             = "integrations/${aws_apigatewayv2_integration.alb.id}"
+  target             = "integrations/${aws_apigatewayv2_integration.alb_traced.id}"
   authorization_type = "CUSTOM"
   authorizer_id      = local.lambda.jwt_authorizer_id
 }
@@ -94,7 +114,7 @@ resource "aws_apigatewayv2_route" "protected_root" {
 resource "aws_apigatewayv2_route" "protected_proxy" {
   api_id             = local.addons.app_api_id
   route_key          = "ANY /{proxy+}"
-  target             = "integrations/${aws_apigatewayv2_integration.alb.id}"
+  target             = "integrations/${aws_apigatewayv2_integration.alb_traced.id}"
   authorization_type = "CUSTOM"
   authorizer_id      = local.lambda.jwt_authorizer_id
 }

@@ -48,6 +48,54 @@ variable "queues" {
   }
 }
 
+variable "aws_integration_enabled" {
+  description = "Cria monitores/widgets de SQS. Requer a integração AWS no Datadog; no AWS Academy fica false e o fallback são os alarmes CloudWatch do messaging."
+  type        = bool
+  default     = false
+}
+
+variable "kube_cluster_name" {
+  description = "Tag kube_cluster_name das métricas do Agent (usada no monitor de restarts)"
+  type        = string
+  default     = "lata-velha-prod"
+}
+
+variable "service_namespaces" {
+  description = "Namespace Kubernetes por serviço (tag kube_namespace do Agent)"
+  type        = map(string)
+  default = {
+    os        = "lata-velha-os"
+    inventory = "lata-velha-inventory"
+    billing   = "lata-velha-billing"
+  }
+}
+
+variable "service_deployments" {
+  description = "Deployment Kubernetes por serviço (tag kube_deployment do Agent)"
+  type        = map(string)
+  default = {
+    os        = "lata-velha-os"
+    inventory = "lata-velha-inventory"
+    billing   = "lata-velha-billing"
+  }
+}
+
+variable "trace_metric_prefixes" {
+  description = <<-EOT
+    Prefixo da trace metric do span HTTP server por serviço.
+    hits  = <prefixo>.hits
+    errors = <prefixo>.errors
+    p95   = p95:<prefixo> (a métrica-base é a distribuição de duração, em segundos;
+            NÃO existe <prefixo>.duration neste setup OTel).
+  EOT
+  type        = map(string)
+  default = {
+    os        = "trace.org.springframework.boot.server"
+    inventory = "trace.org.springframework.boot.server"
+    billing   = "trace.io.opentelemetry.spring_webmvc_6.0.server"
+  }
+}
+
 variable "p95_baseline_ms" {
   description = "Baseline de latência p95 HTTP por serviço (ms)"
   type        = map(number)
@@ -68,4 +116,28 @@ variable "runbook_url" {
   description = "URL do runbook de observabilidade"
   type        = string
   default     = "https://github.com/lataVelha/lata-velha-pos-tech-fiap-mono/blob/master/docs/observability-runbook.md"
+}
+
+variable "app_api_url" {
+  description = "URL pública do API Gateway (output app_api_endpoint do addons) — usada nos synthetic tests"
+  type        = string
+  default     = ""
+}
+
+variable "aws_region" {
+  description = "Região AWS do fallback CloudWatch -> Datadog Events"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "cloudwatch_events_forwarding_enabled" {
+  description = "API destination opcional para contas com IAM. No AWS Academy use o forwarder Lambda do stack lambda (EventBridge target com resource-based permission)."
+  type        = bool
+  default     = false
+}
+
+variable "aws_account_id" {
+  description = "Account ID usado para montar o ARN da LabRole do EventBridge (fallback CloudWatch). Vazio = fallback desabilitado."
+  type        = string
+  default     = ""
 }
